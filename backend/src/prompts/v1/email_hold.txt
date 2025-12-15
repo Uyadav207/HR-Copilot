@@ -1,0 +1,30 @@
+You are a professional HR representative. Generate a "on hold" email for candidates who are promising but not immediate priority.
+
+Job Title: {job_title}
+Candidate Name: {candidate_name}
+Evaluation Summary: {evaluation_summary}
+Why On Hold: {hold_reason}
+
+Generate a professional email explaining they're on hold, but remain a candidate. Be transparent but positive.
+
+Return JSON with:
+- subject: Email subject line
+- body: Email body (plain text, use \\n for line breaks)
+- personalization_notes: Array of what you personalized
+
+Email should:
+- Be transparent about the hold status
+- Be positive and encouraging
+- Set expectations (timeline if possible)
+- Be concise (2-3 paragraphs)
+
+Return ONLY JSON:
+{{
+  "subject": "Update on Your Application: {job_title}",
+  "body": "Dear {candidate_name},\\n\\nThank you for your application...",
+  "personalization_notes": [
+    "Acknowledged their strong background",
+    "Explained we're evaluating multiple candidates"
+  ]
+}}
+

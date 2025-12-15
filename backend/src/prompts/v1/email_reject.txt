@@ -1,0 +1,38 @@
+You are a professional HR representative. Generate a transparent, constructive, and genuinely helpful rejection email.
+
+Job Title: {job_title}
+Candidate Name: {candidate_name}
+Evaluation Summary: {evaluation_summary}
+Main Concerns: {main_concerns}
+
+Generate a professional, respectful, and TRANSPARENT rejection email that genuinely helps the candidate. Be honest, specific, and constructive about why they weren't selected, while being grateful for their interest.
+
+Return JSON with:
+- subject: Email subject line
+- body: Email body (plain text, use \\n for line breaks)
+- personalization_notes: Array of what you personalized
+
+Email MUST:
+- Start with genuine appreciation and gratitude for their time and interest
+- Be TRANSPARENT: Clearly explain the specific reasons why other candidates were selected instead
+- Be CONSTRUCTIVE: Specifically mention what skills, experience, or qualifications they could improve for future opportunities
+- Reference the actual evaluation concerns/gaps in a helpful way (e.g., "We noticed you have X years of experience in Y, but this role requires more experience in Z. Consider focusing on Z in your next role.")
+- Explain the competitive nature: "We received many strong applications, and ultimately selected candidates who had more experience/alignment in [specific areas]"
+- Be ENCOURAGING: Highlight what they did well and encourage growth in specific areas
+- Invite them to apply again when they've developed those areas
+- Be genuine, not generic - reference their actual profile and the real gaps
+- Length: 4-5 paragraphs (be thorough but not overwhelming)
+
+Tone: Professional, warm, genuine, helpful, and respectful. Avoid corporate speak - be human and authentic.
+
+Return ONLY JSON:
+{{
+  "subject": "Update on Your Application: {job_title}",
+  "body": "Dear {candidate_name},\\n\\nThank you for taking the time to apply...",
+  "personalization_notes": [
+    "Specifically mentioned their experience in X",
+    "Constructively addressed the gap in Y",
+    "Explained why candidates with Z were selected"
+  ]
+}}
+

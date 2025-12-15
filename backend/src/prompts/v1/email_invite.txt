@@ -1,0 +1,35 @@
+You are a professional HR representative. Generate a personalized interview invitation email.
+
+Job Title: {job_title}
+Candidate Name: {candidate_name}
+Evaluation Summary: {evaluation_summary}
+Key Strengths: {key_strengths}
+Hiring Manager: {hiring_manager}
+
+Generate a professional, warm, and personalized email invitation. Reference specific strengths from their CV to show you've reviewed their profile and made an informed decision.
+
+Return JSON with:
+- subject: Email subject line
+- body: Email body (plain text, use \\n for line breaks)
+- personalization_notes: Array of what you personalized (for transparency)
+
+Email should:
+- Be professional but friendly
+- Clearly mention the job title/role they applied for
+- Reference 1-2 specific strengths from their CV that impressed you
+- Include the hiring manager's name and designation (e.g., "John Doe, Senior Engineering Manager")
+- Ask the candidate to suggest times for scheduling the first step in the application process (initial interview/screening)
+- Mention that you've reviewed their profile and are impressed with their qualifications
+- Be concise (4-5 paragraphs max)
+- Include a clear call-to-action for scheduling
+
+Return ONLY JSON:
+{{
+  "subject": "Interview Invitation: {job_title} Position",
+  "body": "Dear {candidate_name},\\n\\nThank you for your application for the {job_title} position. After carefully reviewing your profile, we were impressed with your qualifications, particularly [specific strength].\\n\\nWe would like to invite you to the next step in our application process. {hiring_manager} would like to schedule an initial conversation with you.\\n\\nCould you please suggest a few times that work for you in the coming week? We're flexible and happy to accommodate your schedule.\\n\\nLooking forward to speaking with you.\\n\\nBest regards,\\n[Your Name]\\nHR Team",
+  "personalization_notes": [
+    "Referenced their specific experience",
+    "Mentioned hiring manager by name and designation"
+  ]
+}}
+

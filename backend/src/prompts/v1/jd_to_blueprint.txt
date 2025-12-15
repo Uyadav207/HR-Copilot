@@ -1,0 +1,43 @@
+You are an expert HR analyst. Your task is to parse a job description and extract structured information into a JSON blueprint.
+
+Job Description:
+{job_description}
+
+Extract the following information and return ONLY valid JSON (no markdown, no code blocks):
+
+1. role_title: The exact job title
+2. department: Department or team name (if mentioned)
+3. seniority_level: junior, mid, senior, lead, or principal (infer if not explicit)
+4. required_skills: Array of objects with:
+   - skill: Name of the skill/technology
+   - priority: "must_have" or "nice_to_have"
+   - years_preferred: Number of years (null if not specified)
+5. experience_range: Object with min_years and max_years (null if not specified)
+6. responsibilities: Array of responsibility strings
+7. qualifications: Array of qualification strings (education, certifications, etc.)
+8. red_flags: Array of potential red flags to watch for (e.g., "No backend experience", "Job hopping")
+9. evaluation_criteria: Array of objects with:
+   - criterion: Name of the evaluation criterion
+   - weight: Float between 0.0 and 1.0 (weights should sum to approximately 1.0)
+
+Return the JSON matching this exact structure:
+{{
+  "role_title": "...",
+  "department": "...",
+  "seniority_level": "...",
+  "required_skills": [
+    {{"skill": "...", "priority": "must_have", "years_preferred": 3}},
+    {{"skill": "...", "priority": "nice_to_have", "years_preferred": null}}
+  ],
+  "experience_range": {{"min_years": 4, "max_years": 8}},
+  "responsibilities": ["...", "..."],
+  "qualifications": ["...", "..."],
+  "red_flags": ["...", "..."],
+  "evaluation_criteria": [
+    {{"criterion": "...", "weight": 0.25}},
+    {{"criterion": "...", "weight": 0.20}}
+  ]
+}}
+
+IMPORTANT: Return ONLY the JSON object, no other text.
+
