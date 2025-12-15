@@ -1,127 +1,61 @@
-# HR Autopilot MVP
+## HR Autopilot
 
-An AI-powered, transparent hiring system for startups without a dedicated HR team.
+**AI-first hiring co-pilot for early-stage teams.**  
+Turn messy JDs and CVs into a transparent, auditable pipeline in minutes.
 
-## Quick Start
+### What it does
 
-### 1. Prerequisites
-- Python 3.11+
-- Node.js 18+
-- Docker Desktop
+- **AI JD → Structure**: Paste a job description and get a structured blueprint (skills, seniority, must-haves).
+- **Batch CV ingestion**: Drag-and-drop resumes; they’re parsed, normalized, and linked to jobs.
+- **Evidence-based evaluations**: One-click AI evaluations with **Yes / Maybe / No** plus concrete CV snippets.
+- **Email automation**: Generate tailored invite / hold / reject email drafts from the evaluation context.
+- **Audit trail**: Every important action (parse, evaluate, decide, email) is logged for accountability.
+
+### Tech stack (modern, production-ready)
+
+- **Frontend**: Next.js 14 (App Router), TypeScript, TailwindCSS, shadcn/ui, Radix UI, TanStack Query.
+- **Backend**: Bun, Hono, TypeScript, PostgreSQL + Drizzle ORM, Zod, Nodemailer.
+- **AI**: OpenAI / Anthropic via a pluggable LLM client and prompt registry.
+
+### Architecture at a glance
+
+- **Domain-driven API**: Jobs, Candidates, Evaluations, Audit Logs exposed via a clean `/api` surface.
+- **LLM pipeline**: Prompt templates in `backend/src/prompts` power JD parsing, CV → profile, and profile → evaluation.
+- **Typed contracts**: Shared TypeScript types + Zod schemas between routes and services for safe refactors.
+- **UX focus**: Sidebar-based app layout with quick actions, skeleton states, and contextual navigation across jobs and candidates.
+
+### Run it locally (2–3 minutes)
+
+**Prerequisites**
+- Node.js 18+, Bun, Docker Desktop
+- PostgreSQL/Redis via Docker (already configured)
 - OpenAI or Anthropic API key
 
-### 2. Initial Setup
+**1. Setup**
 
 ```bash
-# 1. Set up environment files
-./setup-env.sh
-
-# 2. Edit backend/.env and add your API key
-# Replace 'your_openai_api_key_here' with your actual key
-
-# 3. Start database services
-docker-compose up -d
-
-# 4. Start backend (in one terminal)
-./start-backend.sh
-
-# 5. Start frontend (in another terminal)
-./start-frontend.sh
+./setup-env.sh               # scaffold env files
+docker-compose up -d         # start Postgres (and supporting services)
 ```
 
-### 3. Access the Application
-
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-
-## Manual Setup (Alternative)
-
-See [START_HERE.md](START_HERE.md) for detailed step-by-step instructions.
-
-## Features
-
-- ✅ **Job Description Management**: Create and parse job descriptions into structured blueprints
-- ✅ **Batch CV Upload**: Upload multiple candidate CVs at once
-- ✅ **AI-Powered Evaluation**: Generate evidence-based decision cards (Yes/Maybe/No)
-- ✅ **Transparent Decisions**: Every decision includes CV evidence snippets
-- ✅ **Email Drafts**: One-click generate role-specific email drafts
-- ✅ **Full Audit Trail**: Complete candidate timeline and action history
-
-## Tech Stack
-
-### Frontend
-- Next.js 14+ (App Router)
-- TypeScript
-- TailwindCSS
-- shadcn/ui
-- TanStack Query
-
-### Backend
-- FastAPI (Python)
-- Pydantic v2
-- PostgreSQL
-- SQLAlchemy (async)
-- Alembic
-- Redis (for background jobs)
-- FastAPI BackgroundTasks
-
-## Project Structure
-
-```
-/hr-autopilot
-├── frontend/          # Next.js application
-├── backend/           # FastAPI application
-├── docker-compose.yml # PostgreSQL + Redis
-├── setup-env.sh      # Environment setup script
-├── start-backend.sh   # Backend startup script
-├── start-frontend.sh  # Frontend startup script
-├── start-all.sh      # Start everything script
-└── README.md
-```
-
-## Development
-
-### Database Migrations
+**2. Start services**
 
 ```bash
-cd backend
-alembic revision --autogenerate -m "Description"
-alembic upgrade head
+./start-backend.sh           # Bun + Hono API on http://localhost:8000
+./start-frontend.sh          # Next.js app on http://localhost:3000
 ```
 
-### Stopping Services
+### Repo layout
 
-```bash
-# Stop frontend/backend (Ctrl+C in terminals)
-# Stop database
-docker-compose down
+```txt
+backend/     Bun + Hono API, Drizzle models, LLM services, audit logging
+frontend/    Next.js 14 app, UI, routing, API client hooks
+docker-compose.yml
+start-*.sh   Helper scripts to run the full stack locally
 ```
 
-## Troubleshooting
+If you’re reviewing this as a recruiter/engineer and want a quick tour, start with:
+- `frontend/src/app/page.tsx` (dashboard + UX)
+- `backend/src/routes` and `backend/src/services` (API design and business logic)
 
-### Database Issues
-```bash
-# Check if containers are running
-docker-compose ps
 
-# View logs
-docker-compose logs
-
-# Restart services
-docker-compose restart
-```
-
-### Backend Issues
-- Ensure port 8000 is available
-- Check `backend/.env` has correct API keys
-- Verify database is running: `docker-compose ps`
-
-### Frontend Issues
-- Ensure port 3000 is available
-- Check `frontend/.env.local` has correct API URL
-- Clear cache: `rm -rf frontend/.next`
-
-## License
-
-MIT
