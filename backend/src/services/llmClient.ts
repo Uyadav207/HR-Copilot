@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { settings } from "../config.js";
 import type { JobBlueprint, CandidateProfile, CandidateEvaluation, EmailDraft } from "../schemas/ai.js";
+import type { RetrievedChunk } from "./vectorStoreService.js";
 
 export class LLMClient {
   private client: OpenAI | Anthropic;
@@ -98,6 +99,61 @@ export class LLMClient {
     return profileDict;
   }
 
+  /**
+   * Parse CV to profile using RAG (Retrieval-Augmented Generation)
+   * Retrieves relevant chunks from Pinecone and requires citations for all claims
+   */
+  async parseCvToProfileWithRAG(
+    candidateId: string,
+    cvText: string,
+    retrievedChunks: RetrievedChunk[]
+  ): Promise<Record<string, any>> {
+    const { getCurrentPrompt } = await import("../prompts/registry.js");
+    
+    // Format chunks for the prompt
+    const chunksFormatted = retrievedChunks
+      .map(
+        (chunk) =>
+          `[Chunk ${chunk.chunkIndex}] (Section: ${chunk.sectionType}, Score: ${chunk.score.toFixed(3)}):\n${chunk.text}`
+      )
+      .join("\n\n---\n\n");
+
+    // Get RAG prompt template
+    let promptTemplate: string;
+    try {
+      promptTemplate = getCurrentPrompt("cv_to_profile_rag");
+    } catch (error) {
+      // Fallback to regular prompt if RAG prompt not found
+      console.warn("RAG prompt not found, falling back to regular parsing");
+      return this.parseCvToProfile(cvText);
+    }
+
+    // Build prompt with chunks
+    const prompt = promptTemplate
+      .replace("{cv_text}", cvText)
+      .replace("{relevant_chunks}", chunksFormatted || "No relevant chunks found.");
+
+    const response =
+      this.provider === "openai"
+        ? await this.callOpenAI(prompt)
+        : await this.callAnthropic(prompt);
+
+    const profileDict = this.extractJson(response);
+    
+    // Validate that skills have citations
+    if (profileDict.skills && Array.isArray(profileDict.skills)) {
+      profileDict.skills = profileDict.skills.map((skill: any) => {
+        // Ensure citation fields exist
+        if (!skill.chunkId && !skill.chunkIndex) {
+          console.warn(`Skill "${skill.skill}" missing citation - this should not happen with RAG`);
+        }
+        return skill;
+      });
+    }
+
+    return profileDict;
+  }
+
   async evaluateCandidate(
     jobBlueprint: Record<string, any>,
     candidateProfile: Record<string, any>
@@ -114,6 +170,172 @@ export class LLMClient {
         : await this.callAnthropic(prompt);
 
     const evaluationDict = this.extractJson(response);
+    return evaluationDict;
+  }
+
+  /**
+   * Evaluate candidate using Direct Enhanced evaluation (no vector search).
+   * Uses structured candidate profile + full CV text for exact quotes/citations.
+   */
+  async evaluateCandidateDirectEnhanced(
+    jobBlueprint: Record<string, any>,
+    candidateProfile: Record<string, any>,
+    cvRawText: string
+  ): Promise<Record<string, any>> {
+    const { getCurrentPrompt } = await import("../prompts/registry.js");
+
+    let promptTemplate: string;
+    try {
+      promptTemplate = getCurrentPrompt("profile_to_evaluation_direct_enhanced");
+    } catch (error) {
+      // Fallback to basic direct evaluation if enhanced prompt isn't available
+      console.warn(
+        "Direct enhanced evaluation prompt not found, falling back to regular evaluation"
+      );
+      return this.evaluateCandidate(jobBlueprint, candidateProfile);
+    }
+
+    // Prevent runaway prompt sizes if CV text is extremely large
+    const MAX_CV_CHARS = 40_000;
+    const cvTextForPrompt =
+      typeof cvRawText === "string" && cvRawText.length > MAX_CV_CHARS
+        ? `${cvRawText.slice(0, MAX_CV_CHARS)}\n\n[TRUNCATED: CV text exceeded ${MAX_CV_CHARS} characters]`
+        : cvRawText || "";
+
+    const prompt = promptTemplate
+      .replace("{job_blueprint}", JSON.stringify(jobBlueprint, null, 2))
+      .replace("{candidate_profile}", JSON.stringify(candidateProfile, null, 2))
+      .replace("{cv_raw_text}", cvTextForPrompt);
+
+    const response =
+      this.provider === "openai"
+        ? await this.callOpenAI(prompt)
+        : await this.callAnthropic(prompt);
+
+    const evaluationDict = this.extractJson(response);
+    return evaluationDict;
+  }
+
+  /**
+   * Evaluate candidate using RAG (Retrieval-Augmented Generation)
+   * Retrieves relevant CV chunks for each JD requirement and requires citations
+   *
+   * @deprecated Evaluation should use evaluateCandidateDirectEnhanced(). Keep RAG for chatbot-style Q&A only.
+   */
+  async evaluateCandidateWithRAG(
+    jobBlueprint: Record<string, any>,
+    candidateProfile: Record<string, any>,
+    relevantChunks: RetrievedChunk[]
+  ): Promise<Record<string, any>> {
+    const { getCurrentPrompt } = await import("../prompts/registry.js");
+    
+    // Format chunks for the prompt
+    const chunksFormatted = relevantChunks
+      .map(
+        (chunk) =>
+          `[Chunk ${chunk.chunkIndex}] (Section: ${chunk.sectionType}, Score: ${chunk.score.toFixed(3)}):\n${chunk.text}`
+      )
+      .join("\n\n---\n\n");
+
+    // Get RAG prompt template
+    let promptTemplate: string;
+    try {
+      promptTemplate = getCurrentPrompt("profile_to_evaluation_rag");
+    } catch (error) {
+      // Fallback to regular evaluation if RAG prompt not found
+      console.warn("RAG evaluation prompt not found, falling back to regular evaluation");
+      return this.evaluateCandidate(jobBlueprint, candidateProfile);
+    }
+
+    // Build prompt with chunks
+    const prompt = promptTemplate
+      .replace("{job_blueprint}", JSON.stringify(jobBlueprint, null, 2))
+      .replace("{candidate_profile}", JSON.stringify(candidateProfile, null, 2))
+      .replace("{relevant_cv_chunks}", chunksFormatted || "No relevant chunks found.");
+
+    const response =
+      this.provider === "openai"
+        ? await this.callOpenAI(prompt)
+        : await this.callAnthropic(prompt);
+
+    const evaluationDict = this.extractJson(response);
+    
+    // Validate that evidence has citations
+    if (evaluationDict.criteria_matches && Array.isArray(evaluationDict.criteria_matches)) {
+      evaluationDict.criteria_matches = evaluationDict.criteria_matches.map((match: any) => {
+        if (match.evidence && Array.isArray(match.evidence)) {
+          match.evidence = match.evidence.map((ev: any) => {
+            if (!ev.chunkId && !ev.chunkIndex) {
+              console.warn(`Evidence for criterion "${match.criterion}" missing citation - this should not happen with RAG`);
+            }
+            return ev;
+          });
+        }
+        return match;
+      });
+    }
+
+    return evaluationDict;
+  }
+
+  /**
+   * Evaluate candidate using Enhanced RAG (with brutal detailed analysis)
+   *
+   * @deprecated Evaluation should use evaluateCandidateDirectEnhanced(). Keep RAG for chatbot-style Q&A only.
+   */
+  async evaluateCandidateWithRAGEnhanced(
+    jobBlueprint: Record<string, any>,
+    candidateProfile: Record<string, any>,
+    relevantChunks: RetrievedChunk[]
+  ): Promise<Record<string, any>> {
+    const { getCurrentPrompt } = await import("../prompts/registry.js");
+    
+    // Format chunks for the prompt
+    const chunksFormatted = relevantChunks
+      .map(
+        (chunk) =>
+          `[Chunk ${chunk.chunkIndex}] (Section: ${chunk.sectionType}, Score: ${chunk.score.toFixed(3)}):\n${chunk.text}`
+      )
+      .join("\n\n---\n\n");
+
+    // Get enhanced RAG prompt template
+    let promptTemplate: string;
+    try {
+      promptTemplate = getCurrentPrompt("profile_to_evaluation_rag_enhanced");
+    } catch (error) {
+      // Fallback to regular RAG evaluation
+      console.warn("Enhanced RAG evaluation prompt not found, falling back to regular RAG");
+      return this.evaluateCandidateWithRAG(jobBlueprint, candidateProfile, relevantChunks);
+    }
+
+    // Build prompt with chunks
+    const prompt = promptTemplate
+      .replace("{job_blueprint}", JSON.stringify(jobBlueprint, null, 2))
+      .replace("{candidate_profile}", JSON.stringify(candidateProfile, null, 2))
+      .replace("{relevant_cv_chunks}", chunksFormatted || "No relevant chunks found.");
+
+    const response =
+      this.provider === "openai"
+        ? await this.callOpenAI(prompt)
+        : await this.callAnthropic(prompt);
+
+    const evaluationDict = this.extractJson(response);
+    
+    // Validate citations
+    if (evaluationDict.criteria_matches && Array.isArray(evaluationDict.criteria_matches)) {
+      evaluationDict.criteria_matches = evaluationDict.criteria_matches.map((match: any) => {
+        if (match.evidence && Array.isArray(match.evidence)) {
+          match.evidence = match.evidence.map((ev: any) => {
+            if (!ev.chunkId && !ev.chunkIndex) {
+              console.warn(`Evidence for criterion "${match.criterion}" missing citation`);
+            }
+            return ev;
+          });
+        }
+        return match;
+      });
+    }
+
     return evaluationDict;
   }
 

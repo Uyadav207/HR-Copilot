@@ -37,6 +37,34 @@ export interface CandidateEvaluation {
   red_flags_found: Array<Record<string, any>>;
   summary: string;
   recommended_interview_questions: string[];
+  // Enhanced evaluation fields
+  jd_requirements_analysis?: {
+    must_have: Array<Record<string, any>>;
+    nice_to_have: Array<Record<string, any>>;
+  };
+  experience_analysis?: Record<string, any>;
+  skills_comparison?: Array<Record<string, any>>;
+  professional_experience_comparison?: Array<Record<string, any>>;
+  resume_quality_issues?: Array<Record<string, any>>;
+  portfolio_links?: Record<string, any>;
+  detailed_comparison?: Array<Record<string, any>>;
+  matching_strengths?: {
+    skills_that_match: Array<Record<string, any>>;
+    experience_that_matches: Array<Record<string, any>>;
+  };
+  missing_gaps?: {
+    technology_gaps: string[];
+    experience_gaps: string[];
+    skill_gaps: string[];
+    other_gaps: string[];
+  };
+  criteria_analysis?: Array<Record<string, any>>;
+  brutal_gap_analysis?: {
+    critical_gaps: Array<Record<string, any>>;
+    major_gaps: Array<Record<string, any>>;
+    moderate_gaps: Array<Record<string, any>>;
+    indirect_experience_analysis: Array<Record<string, any>>;
+  };
 }
 
 export interface EmailDraft {

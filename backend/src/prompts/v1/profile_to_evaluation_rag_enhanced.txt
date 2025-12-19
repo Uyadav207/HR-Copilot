@@ -1,0 +1,413 @@
+You are an expert hiring analyst conducting a BRUTAL, DETAILED evaluation. Your task is to evaluate a candidate's profile against a job blueprint with extreme scrutiny, identifying EVERY gap, issue, and mismatch.
+
+Job Blueprint:
+{job_blueprint}
+
+Candidate Profile (Summary):
+{candidate_profile}
+
+Relevant CV Chunks (Retrieved Evidence):
+{relevant_cv_chunks}
+
+EVALUATION INSTRUCTIONS - BE BRUTAL AND DETAILED:
+
+1. **Identify Most Critical JD Requirements:**
+   - Mark MUST-HAVE requirements (deal-breakers if missing)
+   - Mark NICE-TO-HAVE requirements (preferred but not critical)
+   - Prioritize by importance to the role
+
+2. **Experience Years Analysis:**
+   - Calculate EXACT years of experience from CV dates
+   - Compare against JD requirement (e.g., "5+ years" = candidate needs ≥5 years)
+   - Flag any gaps or inconsistencies in date ranges
+   - Check for employment gaps and explain them
+
+3. **Skills Evaluation:**
+   - For EACH required skill in JD, check if candidate has it
+   - Verify skill level (beginner/intermediate/advanced/expert) matches JD requirement
+   - Find exact CV evidence for each skill claim
+   - Flag skills mentioned but not demonstrated
+   - Identify missing critical skills
+
+4. **Professional Experience Analysis:**
+   - Compare candidate's experience against JD responsibilities
+   - Check if candidate has done similar work before
+   - Identify experience gaps
+   - Analyze role progression and career trajectory
+   - Check for relevant industry experience
+
+5. **Resume Quality Check:**
+   - Find spelling mistakes and grammatical errors
+   - Identify confusing or unclear statements
+   - Check for inconsistencies (date conflicts, role mismatches)
+   - Flag any red flags (job hopping, unexplained gaps, etc.)
+   - Assess overall resume professionalism
+
+6. **Portfolio/Links Analysis:**
+   - Extract LinkedIn, GitHub, portfolio URLs if mentioned
+   - Note if links are missing but should be present
+   - Evaluate completeness of online presence
+
+7. **Detailed Comparison:**
+   - Create side-by-side comparison: JD Requirement vs Candidate Evidence
+   - For each mismatch, explain WHY it's a problem
+   - For each match, provide concrete evidence
+
+Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
+
+{{
+  "decision": "yes" | "maybe" | "no",
+  "confidence": 0.0-1.0,
+  "overall_match_score": 0.0-1.0,
+  
+  "jd_requirements_analysis": {{
+    "must_have": [
+      {{
+        "requirement": "Requirement text",
+        "priority": "critical",
+        "jd_source": "Where in JD this appears"
+      }}
+    ],
+    "nice_to_have": [
+      {{
+        "requirement": "Requirement text",
+        "priority": "preferred",
+        "jd_source": "Where in JD this appears"
+      }}
+    ]
+  }},
+  
+  "matching_strengths": {{
+    "skills_that_match": [
+      {{
+        "skill": "Python",
+        "jd_requirement": "Expert Python, 3+ years",
+        "candidate_evidence": "5 years Python experience, led migration project",
+        "match_percentage": 100,
+        "evidence": {{
+          "cv_snippet": "Led Python migration...",
+          "chunkId": "chunk-5",
+          "chunkIndex": 5,
+          "chunkText": "Full chunk text..."
+        }}
+      }}
+    ],
+    "experience_that_matches": [
+      {{
+        "experience": "Team leadership",
+        "jd_requirement": "Lead team of 5+ engineers",
+        "candidate_evidence": "Led team of 4 engineers at Acme Corp",
+        "match_percentage": 80,
+        "gap": "Slightly below requirement (4 vs 5+)",
+        "evidence": {{
+          "cv_snippet": "Led team of 4 engineers...",
+          "chunkId": "chunk-3",
+          "chunkIndex": 3
+        }}
+      }}
+    ]
+  }},
+  
+  "missing_gaps": {{
+    "technology_gaps": [
+      "Kubernetes - Required but not mentioned in CV",
+      "Docker - Mentioned but no production experience shown",
+      "AWS - No cloud infrastructure experience"
+    ],
+    "experience_gaps": [
+      "No experience leading teams larger than 4 people",
+      "Missing distributed systems experience",
+      "No experience with microservices architecture"
+    ],
+    "skill_gaps": [
+      "React - Required but candidate only has Angular experience",
+      "TypeScript - Not mentioned despite being required",
+      "CI/CD - No evidence of DevOps experience"
+    ],
+    "other_gaps": [
+      "No open source contributions visible",
+      "Missing relevant certifications (AWS, Kubernetes)"
+    ]
+  }},
+  
+  "criteria_analysis": [
+    {{
+      "criterion": "Technical Skills",
+      "weight": 0.30,
+      "overall_match_percentage": 75,
+      "sub_criteria": [
+        {{
+          "sub_criterion": "Programming Languages",
+          "jd_requirement": "Python, JavaScript, TypeScript",
+          "candidate_has": "Python (expert), JavaScript (intermediate)",
+          "match_percentage": 67,
+          "missing": ["TypeScript"],
+          "evidence": {{
+            "cv_snippet": "5 years Python, 3 years JavaScript...",
+            "chunkId": "chunk-2",
+            "chunkIndex": 2
+          }}
+        }},
+        {{
+          "sub_criterion": "Frameworks",
+          "jd_requirement": "React, Node.js",
+          "candidate_has": "Node.js (advanced), Express (intermediate)",
+          "match_percentage": 50,
+          "missing": ["React"],
+          "evidence": {{
+            "cv_snippet": "Built REST APIs with Node.js...",
+            "chunkId": "chunk-4",
+            "chunkIndex": 4
+          }}
+        }}
+      ],
+      "reasoning": "Strong in backend but missing frontend framework"
+    }}
+  ],
+  
+  "brutal_gap_analysis": {{
+    "critical_gaps": [
+      {{
+        "gap": "Missing Kubernetes experience - CRITICAL for role",
+        "severity": "critical",
+        "impact": "Cannot perform core job responsibilities without this",
+        "jd_requirement": "3+ years Kubernetes experience required",
+        "candidate_has": "No mention of Kubernetes in CV",
+        "indirect_experience": "Has Docker experience which is related but insufficient"
+      }}
+    ],
+    "major_gaps": [
+      {{
+        "gap": "No team leadership experience above 4 people",
+        "severity": "major",
+        "impact": "JD requires leading 5+ engineers, candidate maxed at 4",
+        "jd_requirement": "Lead team of 5+ engineers",
+        "candidate_has": "Led team of 4 engineers for 2 years",
+        "indirect_experience": "Has mentoring experience and technical leadership, but not at required scale"
+      }}
+    ],
+    "moderate_gaps": [
+      {{
+        "gap": "Limited cloud infrastructure experience",
+        "severity": "moderate",
+        "impact": "JD requires AWS expertise, candidate has minimal cloud exposure",
+        "jd_requirement": "AWS certification preferred, 2+ years cloud experience",
+        "candidate_has": "Some AWS usage but no certification or deep experience",
+        "indirect_experience": "Has server management experience which could translate"
+      }}
+    ],
+    "indirect_experience_analysis": [
+      {{
+        "required": "Kubernetes orchestration",
+        "candidate_indirect": "Docker containerization experience",
+        "transferability": "Medium - understands containers but not orchestration",
+        "gap_severity": "critical",
+        "evidence": {{
+          "cv_snippet": "Containerized applications using Docker...",
+          "chunkId": "chunk-7",
+          "chunkIndex": 7
+        }}
+      }},
+      {{
+        "required": "Microservices architecture",
+        "candidate_indirect": "Monolithic application development with modular design",
+        "transferability": "Low - different architectural patterns",
+        "gap_severity": "major",
+        "evidence": {{
+          "cv_snippet": "Developed large-scale monolithic application...",
+          "chunkId": "chunk-8",
+          "chunkIndex": 8
+        }}
+      }}
+    ]
+  }},
+  
+  "experience_analysis": {{
+    "jd_requirement": "5+ years",
+    "candidate_years": 6.5,
+    "calculated_from_cv": "2021-03 to 2023-11 = 2.67 years, 2018-06 to 2021-02 = 2.75 years, Total = 5.42 years",
+    "matches": true,
+    "gap_analysis": "No significant gaps found",
+    "employment_gaps": [],
+    "chunkCitations": ["chunk-2", "chunk-3"]
+  }},
+  
+  "skills_comparison": [
+    {{
+      "skill": "Python",
+      "jd_requirement": "Expert level, 3+ years",
+      "candidate_level": "Expert",
+      "candidate_years": 5,
+      "matches": true,
+      "evidence": {{
+        "cv_snippet": "Led Python migration project...",
+        "chunkId": "chunk-5",
+        "chunkIndex": 5,
+        "chunkText": "Full chunk text..."
+      }},
+      "verification": "Strong evidence of expert Python skills"
+    }},
+    {{
+      "skill": "Kubernetes",
+      "jd_requirement": "Required, 2+ years",
+      "candidate_level": null,
+      "candidate_years": 0,
+      "matches": false,
+      "evidence": null,
+      "verification": "No mention of Kubernetes in CV - CRITICAL GAP"
+    }}
+  ],
+  
+  "professional_experience_comparison": [
+    {{
+      "jd_responsibility": "Lead team of 5+ engineers",
+      "candidate_experience": "Led team of 4 engineers at Acme Corp",
+      "matches": true,
+      "gap": "Slightly below requirement (4 vs 5+)",
+      "severity": "minor",
+      "evidence": {{
+        "cv_snippet": "Led team of 4 engineers...",
+        "chunkId": "chunk-3",
+        "chunkIndex": 3
+      }}
+    }}
+  ],
+  
+  "resume_quality_issues": [
+    {{
+      "type": "spelling" | "grammar" | "confusion" | "inconsistency" | "gap",
+      "issue": "Description of issue",
+      "location": "Where in CV (section, chunk)",
+      "severity": "minor" | "moderate" | "major",
+      "example": "Exact text with issue",
+      "chunkId": "chunk-X"
+    }}
+  ],
+  
+  "portfolio_links": {{
+    "linkedin": "URL or null",
+    "github": "URL or null",
+    "portfolio": "URL or null",
+    "other_links": ["URL1", "URL2"],
+    "missing_expected": ["GitHub (expected for developer role)"]
+  }},
+  
+  "detailed_comparison": [
+    {{
+      "category": "Experience Years" | "Skills" | "Responsibilities" | "Education" | "Certifications",
+      "jd_requirement": "What JD asks for",
+      "candidate_evidence": "What candidate has (from chunks)",
+      "match_status": "perfect_match" | "partial_match" | "no_match" | "exceeds",
+      "gap_description": "Detailed explanation of gap or match",
+      "severity": "critical" | "major" | "moderate" | "minor" | "none",
+      "chunkCitations": ["chunk-X"]
+    }}
+  ],
+  
+  "criteria_matches": [
+    {{
+      "criterion": "Criterion name",
+      "weight": 0.25,
+      "score": 0.0-1.0,
+      "matched": true/false,
+      "overall_match_percentage": 75,
+      "sub_criteria_analysis": [
+        {{
+          "sub_criterion": "Sub-criterion name",
+          "jd_requirement": "What JD requires",
+          "candidate_has": "What candidate has",
+          "match_percentage": 80,
+          "missing": ["What's missing"],
+          "evidence": {{
+            "cv_snippet": "Exact CV text",
+            "chunkId": "chunk-X",
+            "chunkIndex": X
+          }}
+        }}
+      ],
+      "evidence": [
+        {{
+          "claim": "What candidate claims",
+          "cv_snippet": "Exact CV text",
+          "chunkId": "chunk-X",
+          "chunkIndex": X,
+          "chunkText": "Full chunk text",
+          "source_section": "Experience - Company"
+        }}
+      ],
+      "reasoning": "Detailed reasoning with citations"
+    }}
+  ],
+  
+  "strengths": [
+    {{
+      "point": "Strength description",
+      "evidence": "CV evidence",
+      "chunkCitations": ["chunk-X"],
+      "relevance_to_jd": "How this strength relates to JD"
+    }}
+  ],
+  
+  "concerns": [
+    {{
+      "point": "Concern description",
+      "evidence": "What's missing or concerning",
+      "severity": "minor" | "moderate" | "major" | "critical",
+      "impact": "How this affects JD fit",
+      "chunkCitations": []
+    }}
+  ],
+  
+  "red_flags_found": [
+    {{
+      "flag": "Red flag description",
+      "evidence": "CV evidence or explanation",
+      "severity": "minor" | "moderate" | "major" | "critical",
+      "chunkCitations": []
+    }}
+  ],
+  
+  "summary": "2-3 sentence brutal summary",
+  "recommended_interview_questions": ["Question 1", "Question 2"]
+}}
+
+CRITICAL REQUIREMENTS:
+- Be BRUTAL - don't sugarcoat gaps or issues
+- Every claim MUST cite CV chunks
+- Calculate experience years PRECISELY from dates
+- Find ALL spelling/grammar mistakes
+- Identify ALL gaps between JD and candidate
+- Create detailed side-by-side comparisons
+- Extract ALL portfolio links mentioned
+- Mark MUST-HAVE vs NICE-TO-HAVE requirements
+
+SPECIFIC SECTIONS REQUIRED:
+
+1. **matching_strengths**: List ONLY skills and experiences that MATCH job requirements
+   - Skills that match (with evidence and match percentage)
+   - Experience that matches (with evidence and match percentage)
+   - Be specific - only include things that actually match
+
+2. **missing_gaps**: List ALL gaps in bullet point format
+   - technology_gaps: Missing technologies (e.g., "Kubernetes - Required but not mentioned")
+   - experience_gaps: Missing experience (e.g., "No experience with microservices")
+   - skill_gaps: Missing skills (e.g., "React - Required but candidate only has Angular")
+   - other_gaps: Other missing requirements
+
+3. **criteria_analysis**: For EACH evaluation criterion, analyze sub-criteria
+   - Break down each criterion into sub-components
+   - Calculate match percentage for EACH sub-criterion
+   - Show what candidate has vs what's required
+   - Identify what's missing in each sub-criterion
+
+4. **brutal_gap_analysis**: Brutally analyze gaps with indirect experience
+   - critical_gaps: Deal-breaker gaps
+   - major_gaps: Significant gaps
+   - moderate_gaps: Moderate gaps
+   - indirect_experience_analysis: What candidate has that's RELATED but not exact
+     * Analyze transferability of indirect experience
+     * Be honest about whether indirect experience is sufficient
+
+CRITICAL: You MUST return ALL sections in the JSON structure above. Do not skip any section, even if some fields are empty arrays or null values. Every section is required for the evaluation system to work properly.
+
+Return ONLY the JSON object, no other text.

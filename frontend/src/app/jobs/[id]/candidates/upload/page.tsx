@@ -139,7 +139,7 @@ export default function UploadCandidatesPage() {
                       </div>
                     </div>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="icon"
                       className="h-8 w-8 shrink-0"
                       onClick={(e) => {
@@ -169,6 +169,7 @@ export default function UploadCandidatesPage() {
               onClick={handleSubmit}
               disabled={files.length === 0 || mutation.isPending}
               size="lg"
+              variant="default"
               className="min-w-[160px]"
             >
               {mutation.isPending ? (

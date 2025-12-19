@@ -16,6 +16,15 @@ export interface Settings {
   openaiModel: string;
   anthropicModel: string;
   
+  // Pinecone Configuration
+  pineconeApiKey: string;
+  pineconeIndexName: string;
+  pineconeEnvironment?: string;
+  
+  // Embedding Configuration
+  embeddingModel: string;
+  embeddingDimension: number;
+  
   // Application
   environment: string;
   logLevel: string;
@@ -52,6 +61,11 @@ export const settings: Settings = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
   openaiModel: process.env.OPENAI_MODEL || "gpt-4-turbo-preview",
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-3-opus-20240229",
+  pineconeApiKey: process.env.PINECONE_API_KEY || "",
+  pineconeIndexName: process.env.PINECONE_INDEX_NAME || "cv-chunks",
+  pineconeEnvironment: process.env.PINECONE_ENVIRONMENT,
+  embeddingModel: process.env.EMBEDDING_MODEL || "text-embedding-3-small",
+  embeddingDimension: parseInt(process.env.EMBEDDING_DIMENSION || "512"),
   environment: process.env.ENVIRONMENT || "development",
   logLevel: process.env.LOG_LEVEL || "INFO",
   apiPrefix: process.env.API_PREFIX || "/api",

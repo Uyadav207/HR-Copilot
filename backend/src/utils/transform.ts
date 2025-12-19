@@ -53,7 +53,18 @@ function transformValue(value: any): any {
   if (isObject(value)) {
     const transformed: Record<string, any> = {};
     for (const [key, val] of Object.entries(value)) {
-      transformed[toSnakeCase(key)] = transformValue(val);
+      // Special handling for evaluation: flatten enhanced_data fields to top level
+      if (key === "enhancedData" || key === "enhanced_data") {
+        // Flatten enhanced_data fields to top level for frontend
+        const enhancedData = val as Record<string, any>;
+        if (enhancedData && typeof enhancedData === "object") {
+          for (const [enhancedKey, enhancedVal] of Object.entries(enhancedData)) {
+            transformed[enhancedKey] = transformValue(enhancedVal);
+          }
+        }
+      } else {
+        transformed[toSnakeCase(key)] = transformValue(val);
+      }
     }
     return transformed;
   }

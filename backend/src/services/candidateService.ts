@@ -7,7 +7,10 @@ import { LLMClient } from "./llmClient.js";
 import { PROMPT_VERSION } from "../prompts/registry.js";
 import { settings } from "../config.js";
 import { evaluations } from "../models/evaluation.js";
+import { emailDrafts } from "../models/emailDraft.js";
 import { randomUUID } from "crypto";
+import { CVChunkingService } from "./cvChunkingService.js";
+import { VectorStoreService } from "./vectorStoreService.js";
 
 export class CandidateService {
   async uploadCandidates(
@@ -90,11 +93,88 @@ export class CandidateService {
         throw new Error(error);
       }
 
-      console.log(`🔄 [Background] API keys configured, calling LLM...`);
-      const llmClient = new LLMClient();
+      console.log(`🔄 [Background] API keys configured, starting RAG pipeline...`);
       
-      console.log(`🔄 [Background] Parsing CV text (${candidate.cvRawText.length} chars)...`);
-      const profile = await llmClient.parseCvToProfile(candidate.cvRawText);
+      // Step 1: Chunk the CV
+      console.log(`🔄 [Background] Chunking CV text (${candidate.cvRawText.length} chars)...`);
+      const chunkingService = new CVChunkingService();
+      const chunks = chunkingService.chunkCV(candidate.cvRawText, candidateId);
+      console.log(`✅ [Background] Created ${chunks.length} chunks`);
+
+      // Step 2: Embed and store chunks in Pinecone
+      let vectorStore: VectorStoreService | null = null;
+      try {
+        if (settings.pineconeApiKey) {
+          console.log(`🔄 [Background] Embedding and storing chunks in Pinecone...`);
+          vectorStore = new VectorStoreService();
+          await vectorStore.upsertChunks(candidateId, chunks);
+          console.log(`✅ [Background] Chunks stored in Pinecone`);
+        } else {
+          console.warn(`⚠️ [Background] PINECONE_API_KEY not configured, skipping vector storage`);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`❌ [Background] Error storing chunks in Pinecone:`, errorMsg);
+        
+        // If index doesn't exist, provide helpful message
+        if (errorMsg.includes("not found") || errorMsg.includes("404")) {
+          console.error(`\n⚠️ IMPORTANT: Pinecone index "${settings.pineconeIndexName}" does not exist!`);
+          console.error(`   Please create it in Pinecone dashboard with:`);
+          console.error(`   - Name: ${settings.pineconeIndexName}`);
+          console.error(`   - Dimension: ${settings.embeddingDimension}`);
+          console.error(`   - Metric: cosine (recommended) or euclidean\n`);
+        }
+        
+        // Continue with parsing even if Pinecone fails (graceful degradation)
+        vectorStore = null;
+      }
+
+      // Step 3: Retrieve relevant chunks for parsing
+      console.log(`🔄 [Background] Retrieving relevant chunks for parsing...`);
+      let retrievedChunks: any[] = [];
+      
+      if (vectorStore) {
+        try {
+          // Retrieve chunks for different aspects
+          // Get general chunks for overall parsing
+          const generalChunks = await vectorStore.searchRelevantChunks(
+            candidateId,
+            "skills experience education certifications work history professional background",
+            10 // Get top 10 chunks for comprehensive coverage
+          );
+          retrievedChunks = generalChunks;
+          console.log(`✅ [Background] Retrieved ${retrievedChunks.length} relevant chunks`);
+        } catch (error) {
+          console.error(`❌ [Background] Error retrieving chunks:`, error);
+          // Fallback: use first few chunks if retrieval fails
+          retrievedChunks = chunks.slice(0, 5).map((chunk, idx) => ({
+            chunkIndex: chunk.chunkIndex,
+            text: chunk.text,
+            sectionType: chunk.sectionType,
+            metadata: chunk.metadata,
+            score: 1.0,
+          }));
+        }
+      } else {
+        // No Pinecone: use chunks directly (fallback)
+        console.log(`⚠️ [Background] Using chunks directly (no Pinecone)`);
+        retrievedChunks = chunks.slice(0, 10).map((chunk) => ({
+          chunkIndex: chunk.chunkIndex,
+          text: chunk.text,
+          sectionType: chunk.sectionType,
+          metadata: chunk.metadata,
+          score: 1.0,
+        }));
+      }
+
+      // Step 4: Parse with RAG
+      console.log(`🔄 [Background] Parsing CV with RAG (${retrievedChunks.length} chunks)...`);
+      const llmClient = new LLMClient();
+      const profile = await llmClient.parseCvToProfileWithRAG(
+        candidateId,
+        candidate.cvRawText,
+        retrievedChunks
+      );
       console.log(`✅ [Background] LLM response received, updating database...`);
 
       await db
@@ -183,8 +263,47 @@ export class CandidateService {
   }
 
   async deleteCandidate(candidateId: string): Promise<boolean> {
-    const result = await db.delete(candidates).where(eq(candidates.id, candidateId));
-    return true;
+    // Delete chunks from Pinecone if configured
+    if (settings.pineconeApiKey) {
+      try {
+        const vectorStore = new VectorStoreService();
+        await vectorStore.deleteCandidateChunks(candidateId);
+      } catch (error) {
+        console.error(`Error deleting chunks for candidate ${candidateId}:`, error);
+        // Continue with candidate deletion even if chunk deletion fails
+      }
+    }
+
+    // Delete related records first (to satisfy foreign key constraints)
+    // Order matters: delete child records before parent
+    try {
+      // Get evaluation IDs for this candidate
+      const candidateEvaluations = await db
+        .select({ id: evaluations.id })
+        .from(evaluations)
+        .where(eq(evaluations.candidateId, candidateId));
+      
+      const evaluationIds = candidateEvaluations.map(e => e.id);
+      
+      // Delete email drafts (if any evaluations exist)
+      if (evaluationIds.length > 0) {
+        await db.delete(emailDrafts).where(inArray(emailDrafts.evaluationId, evaluationIds));
+      }
+      
+      // Delete evaluations
+      await db.delete(evaluations).where(eq(evaluations.candidateId, candidateId));
+      
+      // Delete audit logs
+      await db.delete(auditLogs).where(eq(auditLogs.candidateId, candidateId));
+      
+      // Finally, delete the candidate
+      await db.delete(candidates).where(eq(candidates.id, candidateId));
+      
+      return true;
+    } catch (error) {
+      console.error(`Error deleting candidate ${candidateId}:`, error);
+      throw error;
+    }
   }
 
   private async createAuditLog(

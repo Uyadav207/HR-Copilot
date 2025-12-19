@@ -18,15 +18,25 @@ const emailService = new EmailService();
 
 evaluations.post("/candidates/:candidateId/evaluate", async (c) => {
   const candidateId = c.req.param("candidateId");
+  const force = c.req.query("force") === "true";
   try {
-    const evaluation = await evaluationService.evaluateCandidate(candidateId);
+    const evaluation = await evaluationService.evaluateCandidate(candidateId, { force });
     if (!evaluation) {
       return c.json({ error: "Candidate not found" }, 404);
     }
     return c.json(toSnakeCaseResponse(evaluation), 201);
   } catch (error) {
+    console.error(`❌ [Evaluation Route] Error evaluating candidate ${candidateId}:`, error);
     if (error instanceof Error) {
-      return c.json({ error: error.message }, 400);
+      // Log the full error for debugging
+      console.error(`❌ [Evaluation Route] Error details:`, {
+        message: error.message,
+        stack: error.stack,
+      });
+      return c.json({ 
+        error: error.message,
+        details: error.stack?.split('\n').slice(0, 3).join('\n')
+      }, 400);
     }
     return c.json({ error: "Failed to evaluate candidate" }, 500);
   }

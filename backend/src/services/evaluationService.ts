@@ -4,6 +4,7 @@ import {
   evaluations,
   type Evaluation,
   type NewEvaluation,
+  type EvaluationDecision,
   type FinalDecision,
 } from "../models/evaluation.js";
 import { candidates, type CandidateStatus } from "../models/candidate.js";
@@ -15,7 +16,10 @@ import { PROMPT_VERSION } from "../prompts/registry.js";
 import { randomUUID } from "crypto";
 
 export class EvaluationService {
-  async evaluateCandidate(candidateId: string): Promise<Evaluation | null> {
+  async evaluateCandidate(
+    candidateId: string,
+    opts: { force?: boolean } = {}
+  ): Promise<Evaluation | null> {
     const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
     if (!candidate) {
       return null;
@@ -37,24 +41,86 @@ export class EvaluationService {
       .from(evaluations)
       .where(eq(evaluations.candidateId, candidateId));
 
-    if (existing) {
+    if (existing && !opts.force && !isEvaluationIncomplete(existing)) {
       return existing;
     }
 
-    // Run evaluation
+    // Run evaluation (DIRECT enhanced, no vector search)
+    console.log(
+      `🔄 [Evaluation] Starting DIRECT enhanced evaluation for candidate ${candidateId}...` +
+        (existing ? " (re-evaluating)" : "")
+    );
+
     const llmClient = new LLMClient();
     let evaluationData: Record<string, any>;
+
     try {
-      evaluationData = await llmClient.evaluateCandidate(job.blueprint, candidate.profile);
+      evaluationData = await llmClient.evaluateCandidateDirectEnhanced(
+        job.blueprint,
+        candidate.profile,
+        candidate.cvRawText
+      );
+      evaluationData = normalizeEvaluationOutput(evaluationData);
+      console.log(`✅ [Evaluation] Direct enhanced evaluation completed`);
     } catch (error) {
-      throw new Error(`Failed to evaluate candidate: ${error}`);
+      console.error(`❌ [Evaluation] Error during evaluation:`, error);
+      throw new Error(
+        `Failed to evaluate candidate: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
 
-    // Create evaluation record
+    // Create/update evaluation record
     // Convert LLM response (lowercase) to database enum (uppercase)
     const decisionUpper = (evaluationData.decision as string).toUpperCase() as EvaluationDecision;
-    const newEvaluation: NewEvaluation = {
-      id: randomUUID(),
+    
+    // Extract enhanced evaluation fields
+    const enhancedData: Record<string, any> = {};
+    
+    // Store all enhanced evaluation fields
+    if (evaluationData.jd_requirements_analysis) {
+      enhancedData.jd_requirements_analysis = evaluationData.jd_requirements_analysis;
+    }
+    if (evaluationData.experience_analysis) {
+      enhancedData.experience_analysis = evaluationData.experience_analysis;
+    }
+    if (evaluationData.skills_comparison) {
+      enhancedData.skills_comparison = evaluationData.skills_comparison;
+    }
+    if (evaluationData.professional_experience_comparison) {
+      enhancedData.professional_experience_comparison = evaluationData.professional_experience_comparison;
+    }
+    if (evaluationData.resume_quality_issues) {
+      enhancedData.resume_quality_issues = evaluationData.resume_quality_issues;
+    }
+    if (evaluationData.portfolio_links) {
+      enhancedData.portfolio_links = evaluationData.portfolio_links;
+    }
+    if (evaluationData.detailed_comparison) {
+      enhancedData.detailed_comparison = evaluationData.detailed_comparison;
+    }
+    if (evaluationData.matching_strengths) {
+      enhancedData.matching_strengths = evaluationData.matching_strengths;
+    }
+    if (evaluationData.missing_gaps) {
+      enhancedData.missing_gaps = evaluationData.missing_gaps;
+    }
+    if (evaluationData.brutal_gap_analysis) {
+      enhancedData.brutal_gap_analysis = evaluationData.brutal_gap_analysis;
+    }
+    if ((evaluationData as any).jd_brutal_review) {
+      (enhancedData as any).jd_brutal_review = (evaluationData as any).jd_brutal_review;
+    }
+    if ((evaluationData as any).company_fit_report) {
+      (enhancedData as any).company_fit_report = (evaluationData as any).company_fit_report;
+    }
+    if ((evaluationData as any).adjacent_skill_inferences) {
+      (enhancedData as any).adjacent_skill_inferences = (evaluationData as any).adjacent_skill_inferences;
+    }
+    if (evaluationData.overall_match_score !== undefined) {
+      enhancedData.overall_match_score = evaluationData.overall_match_score;
+    }
+    const evaluationPayload: Omit<NewEvaluation, "id"> & Partial<Pick<NewEvaluation, "id">> = {
+      ...(existing ? { id: existing.id } : { id: randomUUID() }),
       candidateId,
       decision: decisionUpper,
       confidence: evaluationData.confidence as number,
@@ -65,9 +131,79 @@ export class EvaluationService {
       summary: evaluationData.summary as string,
       recommendedQuestions: evaluationData.recommended_interview_questions as string[],
       promptVersion: PROMPT_VERSION,
+      enhancedData: Object.keys(enhancedData).length > 0 ? enhancedData : undefined,
     };
 
-    const [evaluation] = await db.insert(evaluations).values(newEvaluation).returning();
+    let evaluation: Evaluation;
+    try {
+      if (existing) {
+        const [updated] = await db
+          .update(evaluations)
+          .set({
+            decision: evaluationPayload.decision!,
+            confidence: evaluationPayload.confidence!,
+            criteriaMatches: evaluationPayload.criteriaMatches!,
+            strengths: evaluationPayload.strengths!,
+            concerns: evaluationPayload.concerns!,
+            redFlagsFound: evaluationPayload.redFlagsFound!,
+            summary: evaluationPayload.summary!,
+            recommendedQuestions: evaluationPayload.recommendedQuestions,
+            promptVersion: evaluationPayload.promptVersion,
+            enhancedData: evaluationPayload.enhancedData,
+          })
+          .where(eq(evaluations.id, existing.id))
+          .returning();
+        evaluation = updated;
+      } else {
+        const [inserted] = await db.insert(evaluations).values(evaluationPayload as NewEvaluation).returning();
+        evaluation = inserted;
+      }
+    } catch (dbError: any) {
+      // Check if error is about missing enhanced_data column
+      const errorMessage = dbError?.message || String(dbError || "");
+      const errorCode = dbError?.code || "";
+      const isColumnError =
+        errorCode === "42703" ||
+        errorMessage.includes("enhanced_data") ||
+        (errorMessage.includes("column") && errorMessage.includes("does not exist")) ||
+        (errorMessage.includes("column") && errorMessage.includes("enhanced"));
+
+      if (isColumnError) {
+        console.warn(
+          `⚠️ [Evaluation] enhanced_data column not found, saving without enhanced fields.`
+        );
+        console.warn(`   Run: bun run db:add-enhanced-column`);
+        console.warn(
+          `   Or: psql $DATABASE_URL -f backend/scripts/add-enhanced-data-column.sql`
+        );
+
+        if (existing) {
+          const [updated] = await db
+            .update(evaluations)
+            .set({
+              decision: evaluationPayload.decision!,
+              confidence: evaluationPayload.confidence!,
+              criteriaMatches: evaluationPayload.criteriaMatches!,
+              strengths: evaluationPayload.strengths!,
+              concerns: evaluationPayload.concerns!,
+              redFlagsFound: evaluationPayload.redFlagsFound!,
+              summary: evaluationPayload.summary!,
+              recommendedQuestions: evaluationPayload.recommendedQuestions,
+              promptVersion: evaluationPayload.promptVersion,
+            })
+            .where(eq(evaluations.id, existing.id))
+            .returning();
+          evaluation = updated;
+        } else {
+          const { enhancedData, ...withoutEnhanced } = evaluationPayload as any;
+          const [inserted] = await db.insert(evaluations).values(withoutEnhanced).returning();
+          evaluation = inserted;
+        }
+      } else {
+        console.error(`❌ [Evaluation] Database error:`, dbError);
+        throw dbError;
+      }
+    }
 
     // Update candidate status
     await db.update(candidates).set({ status: "EVALUATED" }).where(eq(candidates.id, candidateId));
@@ -76,10 +212,11 @@ export class EvaluationService {
     const log: NewAuditLog = {
       id: randomUUID(),
       candidateId,
-      action: "evaluated",
+      action: existing ? "re_evaluated" : "evaluated",
       actionMetadata: {
         decision: evaluationData.decision,
         confidence: evaluationData.confidence,
+        force: !!opts.force,
       },
     };
     await db.insert(auditLogs).values(log);
@@ -267,4 +404,217 @@ export class EvaluationService {
       .limit(1);
     return emailDraft || null;
   }
+}
+
+function asArray<T = any>(v: any): T[] {
+  return Array.isArray(v) ? v : [];
+}
+
+function asObject(v: any): Record<string, any> {
+  return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+}
+
+/**
+ * Ensure the evaluation JSON always has a stable, UI-friendly shape.
+ * - Fills missing keys with empty arrays/objects
+ * - Accepts camelCase variants and maps to snake_case for top-level enhanced sections
+ */
+function normalizeEvaluationOutput(raw: Record<string, any>): Record<string, any> {
+  const e = asObject(raw);
+
+  // Alias common camelCase -> snake_case if LLM returns mixed styles
+  const matching_strengths = e.matching_strengths ?? e.matchingStrengths;
+  const missing_gaps = e.missing_gaps ?? e.missingGaps;
+  const brutal_gap_analysis = e.brutal_gap_analysis ?? e.brutalGapAnalysis;
+  const jd_requirements_analysis = e.jd_requirements_analysis ?? e.jdRequirementsAnalysis;
+  const experience_analysis = e.experience_analysis ?? e.experienceAnalysis;
+  const skills_comparison = e.skills_comparison ?? e.skillsComparison;
+  const professional_experience_comparison =
+    e.professional_experience_comparison ?? e.professionalExperienceComparison;
+  const resume_quality_issues = e.resume_quality_issues ?? e.resumeQualityIssues;
+  const portfolio_links = e.portfolio_links ?? e.portfolioLinks;
+  const detailed_comparison = e.detailed_comparison ?? e.detailedComparison;
+  const jd_brutal_review = (e as any).jd_brutal_review ?? (e as any).jdBrutalReview;
+  const company_fit_report = (e as any).company_fit_report ?? (e as any).companyFitReport;
+  const adjacent_skill_inferences =
+    (e as any).adjacent_skill_inferences ?? (e as any).adjacentSkillInferences;
+
+  let criteriaMatches = asArray(e.criteria_matches);
+
+  // If still too few criteria, synthesize a stable set from other sections
+  const normalizedSkillsComparison = asArray(skills_comparison);
+  const normalizedProfExpComparison = asArray(professional_experience_comparison);
+  const normalizedResumeIssues = asArray(resume_quality_issues);
+  const normalizedExperienceAnalysis = asObject(experience_analysis);
+
+  if (criteriaMatches.length < 4) {
+    const existingNames = new Set(
+      criteriaMatches
+        .map((c: any) => (typeof c?.criterion === "string" ? c.criterion : ""))
+        .filter(Boolean)
+    );
+
+    const ratio = (num: number, den: number) => (den > 0 ? num / den : 0);
+
+    const skillsTotal = normalizedSkillsComparison.length;
+    const skillsMatched = normalizedSkillsComparison.filter((s: any) => s?.matches === true).length;
+    const skillsScore = ratio(skillsMatched, skillsTotal);
+
+    const respTotal = normalizedProfExpComparison.length;
+    const respMatched = normalizedProfExpComparison.filter((r: any) => r?.matches === true).length;
+    const respScore = ratio(respMatched, respTotal);
+
+    const expMatches = !!normalizedExperienceAnalysis.matches;
+    const expScore =
+      expMatches ? 1 : typeof normalizedExperienceAnalysis.candidate_years === "number" &&
+        normalizedExperienceAnalysis.candidate_years > 0
+      ? 0.5
+      : 0;
+
+    const qualityPenalty = Math.min(1, normalizedResumeIssues.length / 10);
+    const qualityScore = 1 - qualityPenalty;
+
+    const synthesized: any[] = [];
+    const addCriterion = (criterion: string, weight: number, score: number, reasoning: string) => {
+      if (existingNames.has(criterion)) return;
+      synthesized.push({
+        criterion,
+        weight,
+        score: Math.max(0, Math.min(1, score)),
+        matched: score >= 0.7,
+        evidence: [],
+        reasoning,
+      });
+      existingNames.add(criterion);
+    };
+
+    addCriterion(
+      "SkillsMatch",
+      0.35,
+      skillsScore,
+      `Auto-derived from skills_comparison: matched ${skillsMatched}/${skillsTotal} required skills.`
+    );
+    addCriterion(
+      "ResponsibilitiesMatch",
+      0.35,
+      respScore,
+      `Auto-derived from professional_experience_comparison: matched ${respMatched}/${respTotal} responsibilities.`
+    );
+    addCriterion(
+      "ExperienceYears",
+      0.2,
+      expScore,
+      `Auto-derived from experience_analysis.matches=${String(expMatches)}.`
+    );
+    addCriterion(
+      "ResumeQuality",
+      0.1,
+      qualityScore,
+      `Auto-derived from resume_quality_issues count=${normalizedResumeIssues.length}.`
+    );
+
+    // If we already had some criteria, keep them, then append synthesized ones until we hit 4+
+    criteriaMatches = [...criteriaMatches, ...synthesized].slice(0, Math.max(4, criteriaMatches.length));
+  }
+
+  // Compute overall_match_score if missing/zero and we have criteriaMatches with weights
+  let overallMatchScore =
+    typeof e.overall_match_score === "number" ? e.overall_match_score : 0;
+  if (overallMatchScore === 0 && criteriaMatches.length > 0) {
+    const denom = criteriaMatches.reduce(
+      (sum: number, c: any) => sum + (typeof c.weight === "number" ? c.weight : 0),
+      0
+    );
+    const num = criteriaMatches.reduce(
+      (sum: number, c: any) =>
+        sum +
+        (typeof c.weight === "number" ? c.weight : 0) *
+          (typeof c.score === "number" ? c.score : 0),
+      0
+    );
+    overallMatchScore = denom > 0 ? num / denom : 0;
+  }
+
+  return {
+    decision: typeof e.decision === "string" ? e.decision : "maybe",
+    confidence: typeof e.confidence === "number" ? e.confidence : 0.5,
+    overall_match_score: overallMatchScore,
+
+    jd_requirements_analysis: {
+      must_have: asArray(asObject(jd_requirements_analysis).must_have),
+      nice_to_have: asArray(asObject(jd_requirements_analysis).nice_to_have),
+    },
+
+    jd_brutal_review: asObject(jd_brutal_review),
+    company_fit_report: asObject(company_fit_report),
+    adjacent_skill_inferences: asArray(adjacent_skill_inferences),
+
+    matching_strengths: {
+      skills_that_match: asArray(asObject(matching_strengths).skills_that_match),
+      experience_that_matches: asArray(asObject(matching_strengths).experience_that_matches),
+    },
+
+    missing_gaps: {
+      technology_gaps: asArray(asObject(missing_gaps).technology_gaps),
+      experience_gaps: asArray(asObject(missing_gaps).experience_gaps),
+      skill_gaps: asArray(asObject(missing_gaps).skill_gaps),
+      other_gaps: asArray(asObject(missing_gaps).other_gaps),
+    },
+
+    brutal_gap_analysis: {
+      critical_gaps: asArray(asObject(brutal_gap_analysis).critical_gaps),
+      major_gaps: asArray(asObject(brutal_gap_analysis).major_gaps),
+      moderate_gaps: asArray(asObject(brutal_gap_analysis).moderate_gaps),
+      indirect_experience_analysis: asArray(
+        asObject(brutal_gap_analysis).indirect_experience_analysis
+      ),
+    },
+
+    experience_analysis: {
+      jd_requirement: asObject(experience_analysis).jd_requirement ?? "",
+      candidate_years:
+        typeof asObject(experience_analysis).candidate_years === "number"
+          ? asObject(experience_analysis).candidate_years
+          : 0,
+      calculated_from_cv: asObject(experience_analysis).calculated_from_cv ?? "",
+      matches: !!asObject(experience_analysis).matches,
+      gap_analysis: asObject(experience_analysis).gap_analysis ?? "",
+      employment_gaps: asArray(asObject(experience_analysis).employment_gaps),
+    },
+
+    skills_comparison: asArray(skills_comparison),
+    professional_experience_comparison: asArray(professional_experience_comparison),
+    resume_quality_issues: asArray(resume_quality_issues),
+    portfolio_links: {
+      linkedin: asObject(portfolio_links).linkedin ?? null,
+      github: asObject(portfolio_links).github ?? null,
+      portfolio: asObject(portfolio_links).portfolio ?? null,
+      other_links: asArray(asObject(portfolio_links).other_links),
+      missing_expected: asArray(asObject(portfolio_links).missing_expected),
+    },
+    detailed_comparison: asArray(detailed_comparison),
+
+    criteria_matches: criteriaMatches,
+    strengths: asArray(e.strengths),
+    concerns: asArray(e.concerns),
+    red_flags_found: asArray(e.red_flags_found),
+    summary: typeof e.summary === "string" ? e.summary : "",
+    recommended_interview_questions: asArray(e.recommended_interview_questions),
+  };
+}
+
+function isEvaluationIncomplete(evaluation: Evaluation): boolean {
+  const criteriaCount = Array.isArray(evaluation.criteriaMatches)
+    ? evaluation.criteriaMatches.length
+    : 0;
+  const enhanced = (evaluation as any).enhancedData as Record<string, any> | undefined;
+  const missingGapsCount = Array.isArray(enhanced?.missing_gaps?.technology_gaps)
+    ? enhanced!.missing_gaps.technology_gaps.length
+    : 0;
+  const strengthsCount = Array.isArray(enhanced?.matching_strengths?.skills_that_match)
+    ? enhanced!.matching_strengths.skills_that_match.length
+    : 0;
+
+  // Treat an evaluation as incomplete if it lacks the core structured sections
+  return criteriaCount === 0 || (missingGapsCount === 0 && strengthsCount === 0);
 }

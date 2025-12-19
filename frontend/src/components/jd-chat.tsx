@@ -122,7 +122,7 @@ export function JDChat({ jobTitle, onApprove, onClose, className }: JDChatProps)
             <div>
               <CardTitle className="text-base">AI Job Description Assistant</CardTitle>
               <CardDescription className="text-xs">
-                Describe what you need and I'll create the JD
+                Describe what you need and I&apos;ll create the JD
               </CardDescription>
             </div>
           </div>
@@ -145,7 +145,7 @@ export function JDChat({ jobTitle, onApprove, onClose, className }: JDChatProps)
                 <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="font-medium mb-1">Start by describing the job you want to create.</p>
                 <p className="text-xs mt-2">
-                  Example: "I need a Senior Backend Engineer with 5+ years of experience in Node.js and TypeScript"
+                  Example: &quot;I need a Senior Backend Engineer with 5+ years of experience in Node.js and TypeScript&quot;
                 </p>
                 <p className="text-xs mt-1 opacity-75">
                   You can continue chatting to refine the job description

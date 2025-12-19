@@ -1,0 +1,400 @@
+You are an expert hiring analyst conducting a BRUTAL, DETAILED evaluation. Your task is to evaluate a candidate's profile against a job blueprint with extreme scrutiny, identifying EVERY gap, issue, and mismatch.
+
+Job Blueprint:
+{job_blueprint}
+
+Candidate Profile (Structured JSON):
+{candidate_profile}
+
+Full CV Text (for exact quotes, spelling checks, and extra evidence):
+{cv_raw_text}
+
+EVALUATION INSTRUCTIONS - BE BRUTAL AND DETAILED:
+
+1. Identify Most Critical JD Requirements:
+- Mark MUST-HAVE requirements (deal-breakers if missing)
+- Mark NICE-TO-HAVE requirements (preferred but not critical)
+- Prioritize by importance to the role
+
+2. Experience Years Analysis:
+- Calculate EXACT years of experience from CV/profile dates
+- Compare against JD requirement (e.g., "5+ years" = candidate needs ≥5 years)
+- Flag any gaps or inconsistencies in date ranges
+- Check for employment gaps and explain them (or say "unexplained")
+
+3. Skills Evaluation:
+- For EACH required skill in JD, check if candidate has it
+- Verify skill level matches JD requirement
+- Flag skills mentioned but not demonstrated
+- Identify missing critical skills
+
+4. Professional Experience Analysis:
+- Compare candidate experience against JD responsibilities
+- Check if candidate has done similar work before
+- Identify experience gaps
+- Analyze role progression and career trajectory
+
+5. Resume Quality Check:
+- Find spelling mistakes and grammatical errors in CV text
+- Identify confusing or unclear statements
+- Check for inconsistencies (date conflicts, role mismatches)
+- Flag red flags (job hopping, unexplained gaps, inflated claims)
+
+6. Portfolio/Links Analysis:
+- Extract LinkedIn, GitHub, portfolio URLs if mentioned
+- Note if links are missing but should be present
+
+7. Detailed Comparison:
+- Create side-by-side comparison: JD Requirement vs Candidate Evidence
+- For each mismatch, explain WHY it's a problem
+- For each match, provide concrete evidence
+
+EVIDENCE RULES (CRITICAL):
+- Do NOT invent anything.
+- Every non-trivial claim MUST include an exact quote in `cv_snippet`.
+- Prefer evidence from Candidate Profile `evidence` / `evidence_snippets` fields when available.
+- If you use Full CV Text, quote the exact phrase.
+- You do NOT have access to vector chunk ids. If chunk fields are required by schema, set them to null.
+
+COVERAGE REQUIREMENTS (CRITICAL - DO NOT SKIP):
+- You MUST include ALL top-level keys in the JSON schema below.
+- `jd_requirements_analysis.must_have` must include ALL must-have requirements present in the job blueprint (or JD text). If none, use [].
+- `skills_comparison` MUST include one entry per required skill from the job blueprint (mark `matches=false` if missing).
+- `professional_experience_comparison` MUST include one entry per responsibility from the job blueprint (mark `matches=false` if missing).
+- `missing_gaps` MUST be populated when there are any gaps. Do not return empty arrays unless truly no gaps.
+- `matching_strengths.skills_that_match` MUST include the strongest matching skills (at least 3 when possible).
+- `matching_strengths.experience_that_matches` MUST include the strongest matching experiences (at least 2 when possible).
+- `brutal_gap_analysis` MUST include the most important gaps and an honest indirect experience assessment (even if the decision is "yes").
+- `criteria_matches` MUST NOT be empty. Provide at least 4 high-level criteria (e.g., Skills, Responsibilities, Experience Years, Communication/Resume Quality) with weights that sum to ~1.0 and evidence quotes.
+- `jd_brutal_review` MUST be present and critical: point out unclear/contradictory/unrealistic JD items and what signals are missing from the JD that affect evaluation.
+- `company_fit_report` MUST be present: analyze work-style, collaboration, ownership, communication, and environment fit if mentioned in JD (startup pace, remote/hybrid, stakeholders, ambiguity).
+- `adjacent_skill_inferences` MUST be present: ONLY include technology/skills that are NOT explicitly in JD/CV but are reasonably adjacent; label clearly as inference (NOT a CV claim).
+
+Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
+
+{
+  "decision": "yes" | "maybe" | "no",
+  "confidence": 0.0-1.0,
+  "overall_match_score": 0.0-1.0,
+
+  "jd_requirements_analysis": {
+    "must_have": [
+      {
+        "requirement": "Requirement text",
+        "priority": "critical",
+        "jd_source": "Where in JD this appears"
+      }
+    ],
+    "nice_to_have": [
+      {
+        "requirement": "Requirement text",
+        "priority": "preferred",
+        "jd_source": "Where in JD this appears"
+      }
+    ]
+  },
+
+  "jd_brutal_review": {
+    "jd_summary": "1-2 sentence summary of what the role truly needs",
+    "must_have_quality": "clear" | "somewhat_unclear" | "unclear",
+    "red_flags_or_concerns": ["Unrealistic requirement combos, missing salary, unclear scope, etc."],
+    "missing_information": ["What is not specified but important (team size, stack clarity, expectations, etc.)"],
+    "contradictions_or_ambiguities": ["Any contradictory bullets or ambiguous wording"],
+    "evaluation_implications": ["How JD quality impacts confidence in fit decision"]
+  },
+
+  "company_fit_report": {
+    "work_environment_fit": {
+      "jd_expectations": "What JD implies about pace/process/remote/hybrid/collaboration",
+      "candidate_signals": "ONLY from CV/profile quotes; otherwise say 'Not evidenced'",
+      "fit": "strong" | "partial" | "unknown" | "weak",
+      "risks": ["Specific risks for this environment"],
+      "evidence": {
+        "cv_snippet": "Exact quote from CV or 'Not evidenced in CV'",
+        "source_section": "Experience / Summary",
+        "chunkId": null,
+        "chunkIndex": null,
+        "chunkText": null
+      }
+    },
+    "collaboration_communication_fit": {
+      "jd_expectations": "Stakeholders, cross-functional work, communication needs",
+      "candidate_signals": "ONLY from CV/profile quotes; otherwise say 'Not evidenced'",
+      "fit": "strong" | "partial" | "unknown" | "weak",
+      "risks": ["Risks (e.g., no stakeholder exposure evidence)"],
+      "evidence": {
+        "cv_snippet": "Exact quote from CV or 'Not evidenced in CV'",
+        "source_section": "Experience / Summary",
+        "chunkId": null,
+        "chunkIndex": null,
+        "chunkText": null
+      }
+    },
+    "ownership_leadership_fit": {
+      "jd_expectations": "Ownership/mentoring/decision making expectations",
+      "candidate_signals": "ONLY from CV/profile quotes; otherwise say 'Not evidenced'",
+      "fit": "strong" | "partial" | "unknown" | "weak",
+      "risks": ["Risks (e.g., leadership implied but not proven)"],
+      "evidence": {
+        "cv_snippet": "Exact quote from CV or 'Not evidenced in CV'",
+        "source_section": "Experience / Summary",
+        "chunkId": null,
+        "chunkIndex": null,
+        "chunkText": null
+      }
+    },
+    "overall_hr_verdict": {
+      "one_line": "Brutal one-line verdict of fit",
+      "top_3_reasons_to_hire": ["Bullets"],
+      "top_3_reasons_not_to_hire": ["Bullets"],
+      "biggest_unknowns": ["What you cannot verify from CV"],
+      "recommended_next_step": "reject | phone_screen | technical_screen | onsite | hiring_manager_interview",
+      "risk_level": "low" | "medium" | "high"
+    }
+  },
+
+  "adjacent_skill_inferences": [
+    {
+      "inference": "Related skill/tech not explicitly in JD/CV",
+      "why_it_might_matter": "Why this could affect fit",
+      "basis": "Explain reasoning WITHOUT claiming it's in CV",
+      "confidence": 0.0
+    }
+  ],
+
+  "matching_strengths": {
+    "skills_that_match": [
+      {
+        "skill": "Python",
+        "jd_requirement": "Expert Python, 3+ years",
+        "candidate_evidence": "Evidence summary",
+        "match_percentage": 0,
+        "evidence": {
+          "cv_snippet": "Exact quote from CV",
+          "source_section": "Experience - Company / Skills / Summary",
+          "chunkId": null,
+          "chunkIndex": null,
+          "chunkText": null
+        }
+      }
+    ],
+    "experience_that_matches": [
+      {
+        "experience": "Team leadership",
+        "jd_requirement": "Lead team of 5+ engineers",
+        "candidate_evidence": "Evidence summary",
+        "match_percentage": 0,
+        "gap": "If partial match, explain gap; else null",
+        "evidence": {
+          "cv_snippet": "Exact quote from CV",
+          "source_section": "Experience - Company",
+          "chunkId": null,
+          "chunkIndex": null,
+          "chunkText": null
+        }
+      }
+    ]
+  },
+
+  "missing_gaps": {
+    "technology_gaps": ["Bullet point gaps"],
+    "experience_gaps": ["Bullet point gaps"],
+    "skill_gaps": ["Bullet point gaps"],
+    "other_gaps": ["Bullet point gaps"]
+  },
+
+  "brutal_gap_analysis": {
+    "critical_gaps": [
+      {
+        "gap": "Gap description",
+        "severity": "critical",
+        "impact": "What breaks for this role",
+        "jd_requirement": "What JD requires",
+        "candidate_has": "What candidate has",
+        "indirect_experience": "Related experience, if any"
+      }
+    ],
+    "major_gaps": [
+      {
+        "gap": "Gap description",
+        "severity": "major",
+        "impact": "Impact",
+        "jd_requirement": "What JD requires",
+        "candidate_has": "What candidate has",
+        "indirect_experience": "Related experience, if any"
+      }
+    ],
+    "moderate_gaps": [
+      {
+        "gap": "Gap description",
+        "severity": "moderate",
+        "impact": "Impact",
+        "jd_requirement": "What JD requires",
+        "candidate_has": "What candidate has",
+        "indirect_experience": "Related experience, if any"
+      }
+    ],
+    "indirect_experience_analysis": [
+      {
+        "required": "Required skill/experience",
+        "candidate_indirect": "What candidate has that's related",
+        "transferability": "High" | "Medium" | "Low",
+        "gap_severity": "critical" | "major" | "moderate" | "minor",
+        "evidence": {
+          "cv_snippet": "Exact quote from CV",
+          "source_section": "Experience - Company / Skills",
+          "chunkId": null,
+          "chunkIndex": null,
+          "chunkText": null
+        }
+      }
+    ]
+  },
+
+  "experience_analysis": {
+    "jd_requirement": "e.g. 5+ years",
+    "candidate_years": 0,
+    "calculated_from_cv": "Show your math from date ranges",
+    "matches": true,
+    "gap_analysis": "Describe gaps/inconsistencies",
+    "employment_gaps": []
+  },
+
+  "skills_comparison": [
+    {
+      "skill": "Skill name",
+      "jd_requirement": "Requirement",
+      "candidate_level": "beginner" | "intermediate" | "advanced" | "expert" | null,
+      "candidate_years": 0,
+      "matches": true,
+      "evidence": {
+        "cv_snippet": "Exact quote from CV",
+        "source_section": "Skills / Experience",
+        "chunkId": null,
+        "chunkIndex": null,
+        "chunkText": null
+      },
+      "verification": "Evidence-based verification"
+    }
+  ],
+
+  "professional_experience_comparison": [
+    {
+      "jd_responsibility": "Responsibility",
+      "candidate_experience": "What candidate has",
+      "matches": true,
+      "gap": "If partial, explain; else null",
+      "severity": "minor" | "moderate" | "major" | "critical" | "none",
+      "evidence": {
+        "cv_snippet": "Exact quote from CV",
+        "source_section": "Experience - Company",
+        "chunkId": null,
+        "chunkIndex": null,
+        "chunkText": null
+      }
+    }
+  ],
+
+  "resume_quality_issues": [
+    {
+      "type": "spelling" | "grammar" | "confusion" | "inconsistency" | "gap",
+      "issue": "Description of issue",
+      "location": "Where in CV (section)",
+      "severity": "minor" | "moderate" | "major" | "critical",
+      "example": "Exact text with issue",
+      "chunkId": null
+    }
+  ],
+
+  "portfolio_links": {
+    "linkedin": "URL or null",
+    "github": "URL or null",
+    "portfolio": "URL or null",
+    "other_links": [],
+    "missing_expected": []
+  },
+
+  "detailed_comparison": [
+    {
+      "category": "Experience Years" | "Skills" | "Responsibilities" | "Education" | "Certifications",
+      "jd_requirement": "What JD asks for",
+      "candidate_evidence": "What candidate has (quote-backed)",
+      "match_status": "perfect_match" | "partial_match" | "no_match" | "exceeds",
+      "gap_description": "Detailed explanation",
+      "severity": "critical" | "major" | "moderate" | "minor" | "none",
+      "chunkCitations": []
+    }
+  ],
+
+  "criteria_matches": [
+    {
+      "criterion": "Criterion name",
+      "weight": 0.25,
+      "score": 0.0,
+      "matched": true,
+      "overall_match_percentage": 0,
+      "sub_criteria_analysis": [
+        {
+          "sub_criterion": "Sub-criterion name",
+          "jd_requirement": "What JD requires",
+          "candidate_has": "What candidate has",
+          "match_percentage": 0,
+          "missing": [],
+          "evidence": {
+            "cv_snippet": "Exact quote from CV",
+            "source_section": "Experience - Company / Skills",
+            "chunkId": null,
+            "chunkIndex": null,
+            "chunkText": null
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "claim": "What candidate has",
+          "cv_snippet": "Exact quote from CV",
+          "source_section": "Experience - Company / Skills",
+          "chunkId": null,
+          "chunkIndex": null,
+          "chunkText": null
+        }
+      ],
+      "reasoning": "Detailed reasoning"
+    }
+  ],
+
+  "strengths": [
+    {
+      "point": "Strength description",
+      "evidence": "Exact quotes",
+      "chunkCitations": [],
+      "relevance_to_jd": "How this helps the JD"
+    }
+  ],
+
+  "concerns": [
+    {
+      "point": "Concern description",
+      "evidence": "Evidence-based concern",
+      "severity": "minor" | "moderate" | "major" | "critical",
+      "impact": "How this affects JD fit",
+      "chunkCitations": []
+    }
+  ],
+
+  "red_flags_found": [
+    {
+      "flag": "Red flag description",
+      "evidence": "Evidence-based explanation",
+      "severity": "minor" | "moderate" | "major" | "critical",
+      "chunkCitations": []
+    }
+  ],
+
+  "summary": "2-3 sentence brutal summary",
+  "recommended_interview_questions": ["Question 1", "Question 2"]
+}
+
+CRITICAL: You MUST return ALL sections in the JSON structure above. Do not skip any section; if unknown, use empty arrays or nulls.
+
+Return ONLY the JSON object, no other text.

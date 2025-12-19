@@ -19,6 +19,8 @@ export const evaluations = pgTable("evaluations", {
   finalDecision: finalDecisionEnum("final_decision"),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  // Enhanced evaluation data (RAG-based detailed analysis)
+  enhancedData: jsonb("enhanced_data").$type<Record<string, any>>(),
 }, (table) => ({
   candidateIdUnique: unique().on(table.candidateId),
 }));

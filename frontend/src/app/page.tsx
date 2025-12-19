@@ -8,6 +8,7 @@ import { Briefcase, Users, FileText, TrendingUp, Sparkles, Clock } from 'lucide-
 import { apiRequest } from '@/lib/api'
 import { Job } from '@/types'
 import { format } from 'date-fns'
+import { AnimatedCounter } from '@/components/ui/animated-counter'
 
 async function fetchJobs(): Promise<Job[]> {
   return apiRequest<Job[]>('/api/jobs')
@@ -23,14 +24,28 @@ export default function Home() {
   const totalJobs = jobs?.length || 0
 
   return (
-    <div className="space-y-8">
-      {/* Hero Section */}
+    <div className="space-y-10">
+      {/* Hero */}
       <div className="space-y-4">
         <div>
           <h1 className="text-4xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-muted-foreground mt-2">
             Manage your hiring pipeline with AI-powered insights
           </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Link href="/jobs/new">
+            <Button size="lg" className="w-full sm:w-auto">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Create job with AI
+            </Button>
+          </Link>
+          <Link href="/jobs">
+            <Button variant="outline" size="lg" className="w-full sm:w-auto">
+              <Briefcase className="h-4 w-4 mr-2" />
+              View jobs
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -42,8 +57,10 @@ export default function Home() {
             <Briefcase className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalJobs}</div>
-            <p className="text-xs text-muted-foreground">Active job postings</p>
+            <div className="text-2xl font-bold">
+              <AnimatedCounter value={totalJobs} />
+            </div>
+            <p className="text-xs text-muted-foreground">Tracked job postings</p>
           </CardContent>
         </Card>
         <Card>
@@ -53,7 +70,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">Total applicants</p>
+            <p className="text-xs text-muted-foreground">Across all jobs</p>
           </CardContent>
         </Card>
         <Card>
@@ -63,7 +80,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">Completed reviews</p>
+            <p className="text-xs text-muted-foreground">AI assessments completed</p>
           </CardContent>
         </Card>
         <Card>
@@ -88,16 +105,16 @@ export default function Home() {
           <CardContent>
             <div className="flex flex-wrap gap-4">
               <Link href="/jobs/new" className="flex-1 min-w-[200px]">
-                <div className="flex flex-col items-center justify-center h-32 rounded-lg border-2 border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 transition-all duration-200 p-4 cursor-pointer group">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-primary text-primary-foreground mb-3 group-hover:scale-110 transition-transform">
+                <div className="flex flex-col items-center justify-center h-32 rounded-lg border-2 border-primary/20 bg-primary/5 p-4 cursor-pointer">
+                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-primary text-primary-foreground mb-3">
                     <Briefcase className="h-6 w-6" />
                   </div>
                   <span className="text-sm font-medium text-center">Create New Job</span>
                 </div>
               </Link>
               <Link href="/jobs" className="flex-1 min-w-[200px]">
-                <div className="flex flex-col items-center justify-center h-32 rounded-lg border-2 border-border bg-card hover:bg-accent hover:border-primary/40 transition-all duration-200 p-4 cursor-pointer group">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-secondary text-secondary-foreground mb-3 group-hover:scale-110 transition-transform">
+                <div className="flex flex-col items-center justify-center h-32 rounded-lg border-2 border-border bg-card p-4 cursor-pointer">
+                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-secondary text-secondary-foreground mb-3">
                     <FileText className="h-6 w-6" />
                   </div>
                   <span className="text-sm font-medium text-center">View All Jobs</span>

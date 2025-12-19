@@ -1,0 +1,101 @@
+You are an expert CV parser using Retrieval-Augmented Generation (RAG). Your task is to extract structured information from a candidate's CV/resume text, but you MUST cite specific CV chunks for every claim you make.
+
+CV Text (Full Context):
+{cv_text}
+
+Relevant CV Chunks (Retrieved for Analysis):
+{relevant_chunks}
+
+IMPORTANT RULES:
+1. For EVERY skill, experience highlight, or claim you extract, you MUST cite a specific chunk
+2. Use the format: "chunk-{chunkIndex}: {exact text from chunk}"
+3. If you cannot find evidence in the provided chunks, DO NOT include that skill/experience
+4. The chunks above are the most relevant parts - use them as your primary source
+5. You can reference the full CV text for context, but citations must come from the chunks
+
+Extract the following information and return ONLY valid JSON (no markdown, no code blocks):
+
+1. name: Full name
+2. email: Email address (null if not found)
+3. phone: Phone number (null if not found)
+4. location: Location/city (null if not found)
+5. linkedin_url: LinkedIn URL (null if not found)
+6. total_years_experience: Total years of professional experience (calculate from work history)
+7. skills: Array of objects with:
+   - skill: Name of the skill
+   - proficiency: "beginner", "intermediate", "advanced", or "expert" (infer from context)
+   - evidence: A specific CV snippet that demonstrates this skill (from chunks)
+   - chunkId: The chunk identifier (e.g., "chunk-2")
+   - chunkIndex: The chunk index number
+   - chunkText: The exact text from the cited chunk
+8. experience: Array of objects with:
+   - company: Company name
+   - role: Job title
+   - start_date: "YYYY-MM" format
+   - end_date: "YYYY-MM" or null if current
+   - duration_months: Number of months in this role
+   - highlights: Array of key achievements/responsibilities
+   - evidence_snippets: Array of exact CV text snippets (with quotes) that support these highlights
+   - chunkCitations: Array of chunk IDs that support this experience entry
+9. education: Array of objects with:
+   - institution: School/university name
+   - degree: Degree name
+   - graduation_year: Year as string or null
+   - chunkCitations: Array of chunk IDs that support this education entry (if available)
+10. certifications: Array of certification names (with chunk citations if available)
+11. summary: A brief professional summary (2-3 sentences)
+
+Return the JSON matching this exact structure:
+{{
+  "name": "...",
+  "email": "...",
+  "phone": "...",
+  "location": "...",
+  "linkedin_url": "...",
+  "total_years_experience": 6,
+  "skills": [
+    {{
+      "skill": "Python",
+      "proficiency": "expert",
+      "evidence": "Led Python migration project at Acme Corp (2021-2023)",
+      "chunkId": "chunk-2",
+      "chunkIndex": 2,
+      "chunkText": "Led a team of 4 engineers to rewrite the payment processing system using Python..."
+    }}
+  ],
+  "experience": [
+    {{
+      "company": "Acme Corp",
+      "role": "Senior Software Engineer",
+      "start_date": "2021-03",
+      "end_date": "2023-11",
+      "duration_months": 32,
+      "highlights": [
+        "Led team of 4 engineers on payment system rewrite",
+        "Reduced API latency by 40%"
+      ],
+      "evidence_snippets": [
+        "\"Led a team of 4 engineers to rewrite the payment processing system\""
+      ],
+      "chunkCitations": ["chunk-2", "chunk-3"]
+    }}
+  ],
+  "education": [
+    {{
+      "institution": "MIT",
+      "degree": "BS Computer Science",
+      "graduation_year": "2017",
+      "chunkCitations": ["chunk-5"]
+    }}
+  ],
+  "certifications": ["AWS Solutions Architect"],
+  "summary": "..."
+}}
+
+CRITICAL REQUIREMENTS:
+- Return ONLY the JSON object, no other text.
+- EVERY skill MUST have chunkId, chunkIndex, and chunkText fields
+- EVERY experience entry MUST have chunkCitations array
+- If you cannot find a chunk citation for a claim, DO NOT include it
+- Use exact text from chunks in evidence fields
+- Calculate total_years_experience accurately from work history in chunks

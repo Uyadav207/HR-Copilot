@@ -45,14 +45,14 @@ function animateTextUpdate(
     // First, clear the text quickly
     let step = 0
     const clearSteps = 10
-    const clearInterval = setInterval(() => {
+    const clearIntervalId = setInterval(() => {
       step++
       if (step <= clearSteps) {
         const progress = step / clearSteps
         const remainingChars = Math.floor(currentText.length * (1 - progress))
         setDescription(currentText.substring(0, remainingChars))
       } else {
-        clearInterval(clearInterval)
+        clearInterval(clearIntervalId)
         // Then type the new text
         typeText(newText, setDescription, setIsAnimating, stepDuration)
       }
@@ -196,7 +196,7 @@ export default function NewJobPage() {
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="e.g., Senior Backend Engineer"
-                    className="h-11"
+                    className="h-11 bg-white/[0.03] border-white/10 backdrop-blur focus-visible:ring-ai-2/40"
                     required
                     disabled={mutation.isPending}
                   />
@@ -246,7 +246,7 @@ export default function NewJobPage() {
                         <div className="flex items-center gap-2">
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="default"
                             size="sm"
                             onClick={() => setShowChat(true)}
                             className="gap-2"
@@ -256,7 +256,7 @@ export default function NewJobPage() {
                           </Button>
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => setShowInlineAI(true)}
                             className="gap-2"
@@ -289,6 +289,7 @@ export default function NewJobPage() {
                   <Button 
                     type="submit" 
                     size="lg" 
+                    variant="default"
                     disabled={mutation.isPending || !title.trim() || !description.trim()}
                     className="min-w-[140px]"
                   >

@@ -1,6 +1,10 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../database.js";
 import { jobs, type Job, type NewJob } from "../models/job.js";
+import { candidates } from "../models/candidate.js";
+import { auditLogs } from "../models/auditLog.js";
+import { evaluations } from "../models/evaluation.js";
+import { emailDrafts } from "../models/emailDraft.js";
 import { LLMClient } from "./llmClient.js";
 import { PROMPT_VERSION } from "../prompts/registry.js";
 import { settings } from "../config.js";
@@ -142,7 +146,46 @@ export class JobService {
   }
 
   async deleteJob(jobId: string): Promise<boolean> {
-    const result = await db.delete(jobs).where(eq(jobs.id, jobId));
+    // Check if job exists
+    const job = await this.getJob(jobId);
+    if (!job) {
+      return false;
+    }
+
+    // Get all candidates for this job
+    const jobCandidates = await db
+      .select()
+      .from(candidates)
+      .where(eq(candidates.jobId, jobId));
+
+    if (jobCandidates.length > 0) {
+      const candidateIds = jobCandidates.map((c) => c.id);
+
+      // Get all evaluations for these candidates
+      const jobEvaluations = await db
+        .select()
+        .from(evaluations)
+        .where(inArray(evaluations.candidateId, candidateIds));
+
+      if (jobEvaluations.length > 0) {
+        const evaluationIds = jobEvaluations.map((e) => e.id);
+
+        // Delete email drafts for all evaluations
+        await db.delete(emailDrafts).where(inArray(emailDrafts.evaluationId, evaluationIds));
+      }
+
+      // Delete audit logs for all candidates
+      await db.delete(auditLogs).where(inArray(auditLogs.candidateId, candidateIds));
+
+      // Delete evaluations for all candidates
+      await db.delete(evaluations).where(inArray(evaluations.candidateId, candidateIds));
+
+      // Delete all candidates for this job
+      await db.delete(candidates).where(eq(candidates.jobId, jobId));
+    }
+
+    // Finally, delete the job
+    await db.delete(jobs).where(eq(jobs.id, jobId));
     return true;
   }
 }

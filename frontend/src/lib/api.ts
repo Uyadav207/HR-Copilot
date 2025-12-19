@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export async function apiRequest<T>(
   endpoint: string,
@@ -7,13 +7,11 @@ export async function apiRequest<T>(
   const url = `${API_URL}${endpoint}`
   
   // Prepare headers - only add Content-Type if body is present
-  const headers: HeadersInit = {
-    ...options.headers,
-  }
+  const headers = new Headers(options.headers)
   
   // Only set Content-Type for JSON if body exists and is not FormData
   if (options.body && !(options.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json'
+    headers.set('Content-Type', 'application/json')
   }
   
   const response = await fetch(url, {

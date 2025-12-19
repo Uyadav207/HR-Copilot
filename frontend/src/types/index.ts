@@ -85,26 +85,45 @@ export interface Evaluation {
     weight: number
     score: number
     matched: boolean
+    overall_match_percentage?: number
+    sub_criteria_analysis?: Array<{
+      sub_criterion: string
+      jd_requirement: string
+      candidate_has: string
+      match_percentage: number
+      missing: string[]
+      evidence?: {
+        cv_snippet: string
+        chunk_id: string
+        chunk_index: number
+      }
+    }>
     evidence: Array<{
       claim: string
       cv_snippet: string
       source_section: string
+      chunk_id?: string
+      chunk_index?: number
+      chunk_text?: string
     }>
     reasoning: string
   }>
   strengths: Array<{
     point: string
     evidence: string
+    chunk_citations?: string[]
   }>
   concerns: Array<{
     point: string
     evidence: string
     severity: 'minor' | 'moderate' | 'major'
+    chunk_citations?: string[]
   }>
   red_flags_found: Array<{
     flag: string
     evidence: string
     severity: 'minor' | 'moderate' | 'major'
+    chunk_citations?: string[]
   }>
   summary: string
   recommended_questions: string[] | null
@@ -112,6 +131,183 @@ export interface Evaluation {
   final_decision: 'invited' | 'rejected' | 'on_hold' | null
   decided_at: string | null
   created_at: string
+  // Enhanced evaluation fields
+  jd_requirements_analysis?: {
+    must_have: Array<{
+      requirement: string
+      priority: string
+      jd_source: string
+    }>
+    nice_to_have: Array<{
+      requirement: string
+      priority: string
+      jd_source: string
+    }>
+  }
+  experience_analysis?: {
+    jd_requirement: string
+    candidate_years: number
+    calculated_from_cv: string
+    matches: boolean
+    gap_analysis: string
+    employment_gaps: Array<any>
+    chunk_citations: string[]
+  }
+  skills_comparison?: Array<{
+    skill: string
+    jd_requirement: string
+    candidate_level: string | null
+    candidate_years: number
+    matches: boolean
+    evidence: {
+      cv_snippet: string
+      chunk_id: string
+      chunk_index: number
+      chunk_text: string
+    } | null
+    verification: string
+  }>
+  professional_experience_comparison?: Array<{
+    jd_responsibility: string
+    candidate_experience: string
+    matches: boolean
+    gap: string
+    severity: 'minor' | 'moderate' | 'major'
+    evidence: {
+      cv_snippet: string
+      chunk_id: string
+      chunk_index: number
+    }
+  }>
+  resume_quality_issues?: Array<{
+    type: 'spelling' | 'grammar' | 'confusion' | 'inconsistency' | 'gap'
+    issue: string
+    location: string
+    severity: 'minor' | 'moderate' | 'major'
+    example: string
+    chunk_id: string
+  }>
+  portfolio_links?: {
+    linkedin: string | null
+    github: string | null
+    portfolio: string | null
+    other_links: string[]
+    missing_expected: string[]
+  }
+  detailed_comparison?: Array<{
+    category: string
+    jd_requirement: string
+    candidate_evidence: string
+    match_status: 'perfect_match' | 'partial_match' | 'no_match' | 'exceeds'
+    gap_description: string
+    severity: 'critical' | 'major' | 'moderate' | 'minor' | 'none'
+    chunk_citations: string[]
+  }>
+  matching_strengths?: {
+    skills_that_match: Array<{
+      skill: string
+      jd_requirement: string
+      candidate_evidence: string
+      match_percentage: number
+      evidence?: {
+        cv_snippet: string
+        source_section?: string
+        chunk_id?: string | null
+        chunk_index?: number | null
+        chunk_text?: string | null
+      } | null
+    }>
+    experience_that_matches: Array<{
+      experience: string
+      jd_requirement: string
+      candidate_evidence: string
+      match_percentage: number
+      gap?: string | null
+      evidence?: {
+        cv_snippet: string
+        source_section?: string
+        chunk_id?: string | null
+        chunk_index?: number | null
+        chunk_text?: string | null
+      } | null
+    }>
+  }
+  missing_gaps?: {
+    technology_gaps: string[]
+    experience_gaps: string[]
+    skill_gaps: string[]
+    other_gaps: string[]
+  }
+  brutal_gap_analysis?: {
+    critical_gaps: Array<any>
+    major_gaps: Array<any>
+    moderate_gaps: Array<any>
+    indirect_experience_analysis: Array<any>
+  }
+  jd_brutal_review?: {
+    jd_summary: string
+    must_have_quality: 'clear' | 'somewhat_unclear' | 'unclear'
+    red_flags_or_concerns: string[]
+    missing_information: string[]
+    contradictions_or_ambiguities: string[]
+    evaluation_implications: string[]
+  }
+  company_fit_report?: {
+    work_environment_fit: {
+      jd_expectations: string
+      candidate_signals: string
+      fit: 'strong' | 'partial' | 'unknown' | 'weak'
+      risks: string[]
+      evidence: {
+        cv_snippet: string
+        source_section: string
+        chunk_id?: string | null
+        chunk_index?: number | null
+        chunk_text?: string | null
+      }
+    }
+    collaboration_communication_fit: {
+      jd_expectations: string
+      candidate_signals: string
+      fit: 'strong' | 'partial' | 'unknown' | 'weak'
+      risks: string[]
+      evidence: {
+        cv_snippet: string
+        source_section: string
+        chunk_id?: string | null
+        chunk_index?: number | null
+        chunk_text?: string | null
+      }
+    }
+    ownership_leadership_fit: {
+      jd_expectations: string
+      candidate_signals: string
+      fit: 'strong' | 'partial' | 'unknown' | 'weak'
+      risks: string[]
+      evidence: {
+        cv_snippet: string
+        source_section: string
+        chunk_id?: string | null
+        chunk_index?: number | null
+        chunk_text?: string | null
+      }
+    }
+    overall_hr_verdict: {
+      one_line: string
+      top_3_reasons_to_hire: string[]
+      top_3_reasons_not_to_hire: string[]
+      biggest_unknowns: string[]
+      recommended_next_step: 'reject' | 'phone_screen' | 'technical_screen' | 'onsite' | 'hiring_manager_interview'
+      risk_level: 'low' | 'medium' | 'high'
+    }
+  }
+  adjacent_skill_inferences?: Array<{
+    inference: string
+    why_it_might_matter: string
+    basis: string
+    confidence: number
+  }>
+  overall_match_score: number
 }
 
 export interface EmailDraft {

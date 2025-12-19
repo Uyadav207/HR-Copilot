@@ -7,6 +7,7 @@ import jobs from "./routes/jobs.js";
 import candidates from "./routes/candidates.js";
 import evaluations from "./routes/evaluations.js";
 import audit from "./routes/audit.js";
+import chat from "./routes/chat.js";
 
 const app = new Hono();
 
@@ -36,6 +37,7 @@ app.route(settings.apiPrefix, jobs);
 app.route(settings.apiPrefix, candidates);
 app.route(settings.apiPrefix, evaluations);
 app.route(settings.apiPrefix, audit);
+app.route(settings.apiPrefix, chat);
 
 // Verify email configuration on startup
 const emailService = new EmailService();
@@ -52,4 +54,7 @@ console.log(`📚 API available at http://localhost:${port}${settings.apiPrefix}
 export default {
   port,
   fetch: app.fetch,
+  // Increase timeout for long-running operations like LLM evaluations
+  // Bun's maximum idleTimeout is 255 seconds
+  idleTimeout: 255, // ~4.25 minutes - maximum allowed by Bun
 };

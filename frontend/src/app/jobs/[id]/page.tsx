@@ -211,7 +211,7 @@ export default function JobDetailPage() {
           <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold mb-2">Job not found</h3>
           <p className="text-sm text-muted-foreground mb-6">
-            The job you're looking for doesn't exist or has been removed.
+            The job you&apos;re looking for doesn&apos;t exist or has been removed.
           </p>
           <Link href="/jobs">
             <Button>Back to Jobs</Button>
@@ -226,7 +226,7 @@ export default function JobDetailPage() {
       {/* Header */}
       <div className="space-y-4">
         <Link href="/jobs">
-          <Button variant="ghost" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back to Jobs
           </Button>
@@ -254,7 +254,7 @@ export default function JobDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link href={`/jobs/${jobId}/candidates/upload`}>
-              <Button size="lg">
+              <Button variant="default" size="lg">
                 <Upload className="mr-2 h-4 w-4" />
                 Upload CVs
               </Button>
@@ -292,7 +292,7 @@ export default function JobDetailPage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
-                <CardTitle>Job Blueprint</CardTitle>
+                <CardTitle className="text-xl">Job Blueprint</CardTitle>
               </div>
               <CardDescription>AI-parsed job requirements and evaluation criteria</CardDescription>
             </CardHeader>
@@ -309,7 +309,7 @@ export default function JobDetailPage() {
                           <Badge
                             key={idx}
                             variant={skill.priority === 'must_have' ? 'default' : 'secondary'}
-                            className="text-sm py-1.5 px-3"
+                            className="text-sm py-1.5 px-3 border border-white/10 bg-white/[0.04] hover:bg-white/[0.06]"
                           >
                             {skill.skill}
                             {skill.years_preferred && (

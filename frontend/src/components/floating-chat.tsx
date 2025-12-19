@@ -127,12 +127,12 @@ export function FloatingChat({ jobTitle, onApprove, onClose, isOpen }: FloatingC
     <>
       {/* Backdrop overlay */}
       <div
-        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px] animate-in fade-in-0 duration-200"
+        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[3px] duration-200"
         onClick={onClose}
       />
       
       {/* Floating chat container */}
-      <div className="fixed bottom-6 right-6 z-50 w-[420px] max-w-[calc(100vw-3rem)] animate-in slide-in-from-bottom-2 slide-in-from-right-2 fade-in-0 zoom-in-95 duration-300 ease-out">
+      <div className="fixed bottom-6 right-6 z-50 w-[420px] max-w-[calc(100vw-3rem)] duration-300 ease-out">
         <Card className="flex flex-col shadow-2xl border h-[600px] max-h-[calc(100vh-6rem)] overflow-hidden">
           <CardHeader className="pb-3 border-b shrink-0">
             <div className="flex items-center justify-between">
@@ -143,12 +143,12 @@ export function FloatingChat({ jobTitle, onApprove, onClose, isOpen }: FloatingC
                 <div>
                   <CardTitle className="text-base">AI Job Description Assistant</CardTitle>
                   <CardDescription className="text-xs">
-                    Describe what you need and I'll create the JD
+                    Describe what you need and I&apos;ll create the JD
                   </CardDescription>
                 </div>
               </div>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 className="h-8 w-8"
                 onClick={onClose}
@@ -166,7 +166,7 @@ export function FloatingChat({ jobTitle, onApprove, onClose, isOpen }: FloatingC
                     <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p className="font-medium mb-1">Start by describing the job you want to create.</p>
                     <p className="text-xs mt-2">
-                      Example: "I need a Senior Backend Engineer with 5+ years of experience in Node.js and TypeScript"
+                      Example: &quot;I need a Senior Backend Engineer with 5+ years of experience in Node.js and TypeScript&quot;
                     </p>
                     <p className="text-xs mt-1 opacity-75">
                       You can continue chatting to refine the job description
@@ -243,6 +243,7 @@ export function FloatingChat({ jobTitle, onApprove, onClose, isOpen }: FloatingC
                 <Button
                   type="submit"
                   size="icon"
+                  variant="default"
                   disabled={!input.trim() || mutation.isPending}
                   className="shrink-0"
                 >
