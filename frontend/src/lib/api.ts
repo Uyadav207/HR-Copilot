@@ -9,6 +9,14 @@ export async function apiRequest<T>(
   // Prepare headers - only add Content-Type if body is present
   const headers = new Headers(options.headers)
   
+  // Add auth token if available
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+  }
+  
   // Only set Content-Type for JSON if body exists and is not FormData
   if (options.body && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json')
@@ -37,8 +45,21 @@ export async function apiUpload<T>(
   formData: FormData
 ): Promise<T> {
   const url = `${API_URL}${endpoint}`
+  
+  // Prepare headers
+  const headers = new Headers()
+  
+  // Add auth token if available
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+  }
+  
   const response = await fetch(url, {
     method: 'POST',
+    headers,
     body: formData,
   })
 

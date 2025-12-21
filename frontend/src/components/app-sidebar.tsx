@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import {
   LayoutDashboard,
   Briefcase,
@@ -20,6 +21,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
@@ -91,6 +93,7 @@ function SidebarHeaderContent() {
 export function AppSidebar() {
   const pathname = usePathname()
   const { state } = useSidebar()
+  const { user } = useAuth()
   const isCollapsed = state === "collapsed"
 
   return (
@@ -172,6 +175,13 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      {!isCollapsed && user && (
+        <SidebarFooter className="border-t border-sidebar-border bg-sidebar-background/50 backdrop-blur-xl p-2">
+          <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">
+            {user.email}
+          </div>
+        </SidebarFooter>
+      )}
     </Sidebar>
   )
 }

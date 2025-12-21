@@ -8,6 +8,7 @@ import candidates from "./routes/candidates.js";
 import evaluations from "./routes/evaluations.js";
 import audit from "./routes/audit.js";
 import chat from "./routes/chat.js";
+import auth from "./routes/auth.js";
 
 const app = new Hono();
 
@@ -33,6 +34,7 @@ app.get("/health", (c) => {
 });
 
 // API routes
+app.route(settings.apiPrefix, auth);
 app.route(settings.apiPrefix, jobs);
 app.route(settings.apiPrefix, candidates);
 app.route(settings.apiPrefix, evaluations);

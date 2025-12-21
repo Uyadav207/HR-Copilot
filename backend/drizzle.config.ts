@@ -11,6 +11,7 @@ export default {
     "./src/models/auditLog.ts",
     "./src/models/evaluation.ts",
     "./src/models/emailDraft.ts",
+    "./src/models/user.ts",
   ],
   out: "./drizzle",
   dialect: "postgresql",

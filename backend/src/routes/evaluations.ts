@@ -11,10 +11,14 @@ import { db } from "../database.js";
 import { candidates } from "../models/candidate.js";
 import { evaluations as evaluationsTable } from "../models/evaluation.js";
 import { eq } from "drizzle-orm";
+import { authMiddleware } from "../middleware/auth.js";
 
 const evaluations = new Hono();
 const evaluationService = new EvaluationService();
 const emailService = new EmailService();
+
+// Apply auth middleware to all routes
+evaluations.use("*", authMiddleware);
 
 evaluations.post("/candidates/:candidateId/evaluate", async (c) => {
   const candidateId = c.req.param("candidateId");

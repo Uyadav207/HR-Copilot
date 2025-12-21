@@ -198,10 +198,10 @@ export default function LandingPage() {
             </nav>
             <div className="flex items-center gap-3">
               <ThemeToggle />
-              <Link href="/dashboard" className="hidden sm:block">
+              <Link href="/login" className="hidden sm:block">
                 <Button variant="ghost" size="sm">Sign In</Button>
               </Link>
-              <Link href="/dashboard">
+              <Link href="/signup">
                 <Button size="sm" className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 shadow-lg shadow-purple-500/25">
                   Get Started
                 </Button>
@@ -280,7 +280,7 @@ export default function LandingPage() {
                 transition={{ duration: 0.8, delay: 0.5 }}
                 className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
               >
-                <Link href="/dashboard">
+                <Link href="/signup">
                   <Button size="lg" className="group text-base px-8 py-6 h-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 shadow-xl shadow-purple-500/30 transition-all hover:shadow-purple-500/40 hover:scale-105">
                     Start Free Trial
                     <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -832,7 +832,7 @@ export default function LandingPage() {
                 No credit card required.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/dashboard">
+                <Link href="/signup">
                   <Button 
                     size="lg" 
                     className="text-lg px-8 py-6 h-auto bg-white text-purple-600 hover:bg-white/90 border-0 shadow-2xl shadow-black/20 hover:scale-105 transition-all"

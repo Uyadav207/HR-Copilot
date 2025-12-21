@@ -14,10 +14,11 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname()
-  const isLandingPage = pathname === "/"
+  const publicPages = ["/", "/login", "/signup"]
+  const isPublicPage = publicPages.includes(pathname)
 
-  // If landing page, render without sidebar
-  if (isLandingPage) {
+  // If public page, render without sidebar
+  if (isPublicPage) {
     return <>{children}</>
   }
 

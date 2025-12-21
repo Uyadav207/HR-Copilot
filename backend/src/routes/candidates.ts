@@ -1,11 +1,16 @@
 import { Hono } from "hono";
 import { CandidateService } from "../services/candidateService.js";
 import { toSnakeCaseResponse } from "../utils/transform.js";
+import { authMiddleware } from "../middleware/auth.js";
 
 const candidates = new Hono();
 const candidateService = new CandidateService();
 
+// Apply auth middleware to all routes
+candidates.use("*", authMiddleware);
+
 candidates.post("/jobs/:jobId/candidates", async (c) => {
+  const user = c.get("user");
   const jobId = c.req.param("jobId");
   const formData = await c.req.formData();
   const files = formData.getAll("files") as File[];
@@ -24,7 +29,7 @@ candidates.post("/jobs/:jobId/candidates", async (c) => {
     })
   );
 
-  const uploadedCandidates = await candidateService.uploadCandidates(jobId, fileData);
+  const uploadedCandidates = await candidateService.uploadCandidates(user.id, jobId, fileData);
 
   // Queue CV parsing in background (non-blocking)
   // Use setTimeout to ensure candidates are committed to DB first
@@ -32,7 +37,7 @@ candidates.post("/jobs/:jobId/candidates", async (c) => {
     if (candidate.cvRawText && !candidate.cvRawText.startsWith("Error")) {
       // Run in background without awaiting, with a small delay to ensure DB commit
       setTimeout(() => {
-        candidateService.parseCvBackground(candidate.id).catch((err) => {
+        candidateService.parseCvBackground(user.id, candidate.id).catch((err) => {
           console.error(`❌ Background CV parsing failed for candidate ${candidate.id}:`, err);
           if (err instanceof Error) {
             console.error(`   Error message: ${err.message}`);
@@ -48,11 +53,13 @@ candidates.post("/jobs/:jobId/candidates", async (c) => {
 });
 
 candidates.get("/jobs/:jobId/candidates", async (c) => {
+  const user = c.get("user");
   const jobId = c.req.param("jobId");
   const statusFilter = c.req.query("status_filter");
   const decisionFilter = c.req.query("decision_filter");
 
   const candidatesList = await candidateService.listCandidates(
+    user.id,
     jobId,
     statusFilter || null,
     decisionFilter || null
@@ -61,8 +68,9 @@ candidates.get("/jobs/:jobId/candidates", async (c) => {
 });
 
 candidates.get("/candidates/:id", async (c) => {
+  const user = c.get("user");
   const id = c.req.param("id");
-  const candidate = await candidateService.getCandidate(id);
+  const candidate = await candidateService.getCandidate(user.id, id);
   if (!candidate) {
     return c.json({ error: "Candidate not found" }, 404);
   }
@@ -70,8 +78,9 @@ candidates.get("/candidates/:id", async (c) => {
 });
 
 candidates.post("/candidates/:id/parse", async (c) => {
+  const user = c.get("user");
   const id = c.req.param("id");
-  const candidate = await candidateService.getCandidate(id);
+  const candidate = await candidateService.getCandidate(user.id, id);
   if (!candidate) {
     return c.json({ error: "Candidate not found" }, 404);
   }
@@ -83,8 +92,8 @@ candidates.post("/candidates/:id/parse", async (c) => {
     });
   }
 
-  await candidateService.parseCvBackground(id);
-  const updated = await candidateService.getCandidate(id);
+  await candidateService.parseCvBackground(user.id, id);
+  const updated = await candidateService.getCandidate(user.id, id);
   return c.json({
     message: "CV parsing completed",
     candidate_id: id,
@@ -93,8 +102,9 @@ candidates.post("/candidates/:id/parse", async (c) => {
 });
 
 candidates.delete("/candidates/:id", async (c) => {
+  const user = c.get("user");
   const id = c.req.param("id");
-  const success = await candidateService.deleteCandidate(id);
+  const success = await candidateService.deleteCandidate(user.id, id);
   if (!success) {
     return c.json({ error: "Candidate not found" }, 404);
   }
@@ -103,14 +113,16 @@ candidates.delete("/candidates/:id", async (c) => {
 
 // Get all candidates with evaluations across all jobs
 candidates.get("/candidates", async (c) => {
-  const allCandidates = await candidateService.getAllCandidatesWithEvaluations();
+  const user = c.get("user");
+  const allCandidates = await candidateService.getAllCandidatesWithEvaluations(user.id);
   return c.json(toSnakeCaseResponse(allCandidates));
 });
 
 // Get PDF file for a candidate
 candidates.get("/candidates/:id/pdf", async (c) => {
+  const user = c.get("user");
   const id = c.req.param("id");
-  const candidate = await candidateService.getCandidate(id);
+  const candidate = await candidateService.getCandidate(user.id, id);
   
   if (!candidate) {
     return c.json({ error: "Candidate not found" }, 404);

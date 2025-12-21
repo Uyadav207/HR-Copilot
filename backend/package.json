@@ -9,6 +9,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    "db:clear": "bun scripts/clear-database.ts",
+    "db:migrate-multi-tenant": "bun scripts/apply-multi-tenant-migration.ts",
     "db:add-enhanced-column": "bun scripts/check-and-add-enhanced-data-column.ts"
   },
   "dependencies": {

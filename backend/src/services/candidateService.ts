@@ -23,9 +23,16 @@ export class CandidateService {
   }
 
   async uploadCandidates(
+    userId: string,
     jobId: string,
     files: Array<{ filename: string; content: Buffer }>
   ): Promise<Candidate[]> {
+    // Verify job belongs to user
+    const [job] = await db.select().from(jobs).where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)));
+    if (!job) {
+      throw new Error("Job not found or access denied");
+    }
+    
     const createdCandidates: Candidate[] = [];
 
     for (const file of files) {
@@ -98,15 +105,23 @@ export class CandidateService {
     return await this.storageService.pdfExists(candidateId, filename);
   }
 
-  async parseCvBackground(candidateId: string): Promise<void> {
+  async parseCvBackground(userId: string, candidateId: string): Promise<void> {
     try {
       console.log(`🔄 [Background] Starting CV parsing for candidate ${candidateId}...`);
       
-      const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
-      if (!candidate) {
-        console.log(`❌ [Background] Candidate ${candidateId} not found for parsing`);
+      // Verify candidate belongs to user
+      const [result] = await db
+        .select({ candidate: candidates })
+        .from(candidates)
+        .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+        .where(and(eq(candidates.id, candidateId), eq(jobs.userId, userId)));
+      
+      if (!result) {
+        console.log(`❌ [Background] Candidate ${candidateId} not found or doesn't belong to user`);
         return;
       }
+      
+      const candidate = result.candidate;
 
       if (candidate.profile) {
         console.log(`✅ [Background] Candidate ${candidateId} already has profile, skipping`);
@@ -248,10 +263,16 @@ export class CandidateService {
   }
 
   async listCandidates(
+    userId: string,
     jobId: string,
     statusFilter?: string | null,
     decisionFilter?: string | null
   ): Promise<Candidate[]> {
+    // Verify job belongs to user
+    const [job] = await db.select().from(jobs).where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)));
+    if (!job) {
+      return []; // Job doesn't exist or doesn't belong to user
+    }
     let result: Candidate[];
 
     if (statusFilter) {
@@ -292,15 +313,19 @@ export class CandidateService {
     return result;
   }
 
-  async getCandidate(candidateId: string): Promise<Candidate | null> {
-    const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
-    return candidate || null;
+  async getCandidate(userId: string, candidateId: string): Promise<Candidate | null> {
+    const [result] = await db
+      .select({ candidate: candidates })
+      .from(candidates)
+      .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+      .where(and(eq(candidates.id, candidateId), eq(jobs.userId, userId)));
+    return result?.candidate || null;
   }
 
   /**
-   * Get all candidates across all jobs with their evaluations and job titles
+   * Get all candidates across all jobs with their evaluations and job titles for a specific user
    */
-  async getAllCandidatesWithEvaluations(): Promise<Array<Candidate & { jobTitle: string; evaluation: any | null }>> {
+  async getAllCandidatesWithEvaluations(userId: string): Promise<Array<Candidate & { jobTitle: string; evaluation: any | null }>> {
     const allCandidates = await db
       .select({
         candidate: candidates,
@@ -308,6 +333,7 @@ export class CandidateService {
       })
       .from(candidates)
       .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+      .where(eq(jobs.userId, userId))
       .orderBy(desc(candidates.createdAt));
 
     // Get all evaluations for these candidates
@@ -330,9 +356,19 @@ export class CandidateService {
     }));
   }
 
-  async deleteCandidate(candidateId: string): Promise<boolean> {
-    // Get candidate first to get filename for PDF deletion
-    const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
+  async deleteCandidate(userId: string, candidateId: string): Promise<boolean> {
+    // Get candidate first and verify it belongs to user's job
+    const [result] = await db
+      .select({ candidate: candidates })
+      .from(candidates)
+      .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+      .where(and(eq(candidates.id, candidateId), eq(jobs.userId, userId)));
+    
+    if (!result) {
+      return false; // Candidate doesn't exist or doesn't belong to user
+    }
+    
+    const candidate = result.candidate;
     
     // Delete PDF file if candidate exists
     if (candidate) {

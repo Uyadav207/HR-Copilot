@@ -2,8 +2,11 @@
 
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings as SettingsIcon, Bell, User, Shield, Sparkles } from 'lucide-react'
+import { Settings as SettingsIcon, Bell, User, Shield, Sparkles, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/contexts/auth-context'
+import { useRouter } from 'next/navigation'
+import { Separator } from '@/components/ui/separator'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -54,6 +57,14 @@ const settingsCards = [
 ]
 
 export default function SettingsPage() {
+  const { logout, user } = useAuth()
+  const router = useRouter()
+
+  const handleLogout = () => {
+    logout()
+    router.push('/login')
+  }
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -127,6 +138,49 @@ export default function SettingsPage() {
             </motion.div>
           )
         })}
+      </motion.div>
+
+      {/* Logout Section */}
+      <motion.div
+        variants={itemVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <Separator className="my-8" />
+        <Card className="border-2 border-destructive/20 bg-destructive/5">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 flex items-center justify-center shadow-lg">
+                <LogOut className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">Sign Out</CardTitle>
+                <CardDescription>
+                  Sign out of your account
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {user && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-sm font-medium">{user.email}</span>
+                </div>
+              )}
+              <Button
+                onClick={handleLogout}
+                variant="destructive"
+                className="w-full"
+                size="lg"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
     </div>
   )

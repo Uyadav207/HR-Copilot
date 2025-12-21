@@ -3,13 +3,18 @@ import { zValidator } from "@hono/zod-validator";
 import { JobService } from "../services/jobService.js";
 import { JobCreateSchema, JobUpdateSchema } from "../schemas/job.js";
 import { toSnakeCaseResponse } from "../utils/transform.js";
+import { authMiddleware } from "../middleware/auth.js";
 
 const jobs = new Hono();
 const jobService = new JobService();
 
+// Apply auth middleware to all routes
+jobs.use("*", authMiddleware);
+
 jobs.post("/jobs", zValidator("json", JobCreateSchema), async (c) => {
+  const user = c.get("user");
   const jobData = c.req.valid("json");
-  const job = await jobService.createJob({
+  const job = await jobService.createJob(user.id, {
     title: jobData.title,
     rawDescription: jobData.raw_description,
   });
@@ -17,13 +22,15 @@ jobs.post("/jobs", zValidator("json", JobCreateSchema), async (c) => {
 });
 
 jobs.get("/jobs", async (c) => {
-  const jobsList = await jobService.listJobs();
+  const user = c.get("user");
+  const jobsList = await jobService.listJobs(user.id);
   return c.json(toSnakeCaseResponse(jobsList));
 });
 
 jobs.get("/jobs/:id", async (c) => {
+  const user = c.get("user");
   const id = c.req.param("id");
-  const job = await jobService.getJob(id);
+  const job = await jobService.getJob(user.id, id);
   if (!job) {
     return c.json({ error: "Job not found" }, 404);
   }
@@ -31,9 +38,10 @@ jobs.get("/jobs/:id", async (c) => {
 });
 
 jobs.put("/jobs/:id", zValidator("json", JobUpdateSchema), async (c) => {
+  const user = c.get("user");
   const id = c.req.param("id");
   const jobData = c.req.valid("json");
-  const job = await jobService.updateJob(id, {
+  const job = await jobService.updateJob(user.id, id, {
     title: jobData.title,
     rawDescription: jobData.raw_description,
   });
@@ -44,9 +52,10 @@ jobs.put("/jobs/:id", zValidator("json", JobUpdateSchema), async (c) => {
 });
 
 jobs.post("/jobs/:id/parse-blueprint", async (c) => {
+  const user = c.get("user");
   const id = c.req.param("id");
   try {
-    const job = await jobService.parseBlueprint(id);
+    const job = await jobService.parseBlueprint(user.id, id);
     if (!job) {
       return c.json({ error: "Job not found" }, 404);
     }
@@ -132,8 +141,9 @@ jobs.post("/jobs/generate-description", async (c) => {
 });
 
 jobs.delete("/jobs/:id", async (c) => {
+  const user = c.get("user");
   const id = c.req.param("id");
-  const success = await jobService.deleteJob(id);
+  const success = await jobService.deleteJob(user.id, id);
   if (!success) {
     return c.json({ error: "Job not found" }, 404);
   }

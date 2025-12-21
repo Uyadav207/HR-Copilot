@@ -341,7 +341,7 @@ export default function CandidateDetailPage() {
     )
   }
 
-  const pdfUrl = candidate ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/candidates/${candidateId}/pdf` : ''
+  const pdfUrl = candidate ? `/api/candidates/${candidateId}/pdf` : ''
 
   return (
     <>

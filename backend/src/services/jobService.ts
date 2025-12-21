@@ -1,4 +1,4 @@
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, and } from "drizzle-orm";
 import { db } from "../database.js";
 import { jobs, type Job, type NewJob } from "../models/job.js";
 import { candidates } from "../models/candidate.js";
@@ -11,9 +11,10 @@ import { settings } from "../config.js";
 import { randomUUID } from "crypto";
 
 export class JobService {
-  async createJob(jobData: { title: string; rawDescription: string }): Promise<Job> {
+  async createJob(userId: string, jobData: { title: string; rawDescription: string }): Promise<Job> {
     const newJob: NewJob = {
       id: randomUUID(),
+      userId,
       title: jobData.title,
       rawDescription: jobData.rawDescription,
       promptVersion: PROMPT_VERSION,
@@ -54,20 +55,21 @@ export class JobService {
     }
   }
 
-  async listJobs(): Promise<Job[]> {
-    return await db.select().from(jobs).orderBy(desc(jobs.createdAt));
+  async listJobs(userId: string): Promise<Job[]> {
+    return await db.select().from(jobs).where(eq(jobs.userId, userId)).orderBy(desc(jobs.createdAt));
   }
 
-  async getJob(jobId: string): Promise<Job | null> {
-    const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId));
+  async getJob(userId: string, jobId: string): Promise<Job | null> {
+    const [job] = await db.select().from(jobs).where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)));
     return job || null;
   }
 
   async updateJob(
+    userId: string,
     jobId: string,
     jobData: { title?: string; rawDescription?: string }
   ): Promise<Job | null> {
-    const job = await this.getJob(jobId);
+    const job = await this.getJob(userId, jobId);
     if (!job) {
       return null;
     }
@@ -105,13 +107,13 @@ export class JobService {
     const [updated] = await db
       .update(jobs)
       .set({ ...updateData, updatedAt: new Date() })
-      .where(eq(jobs.id, jobId))
+      .where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)))
       .returning();
     return updated || null;
   }
 
-  async parseBlueprint(jobId: string): Promise<Job | null> {
-    const job = await this.getJob(jobId);
+  async parseBlueprint(userId: string, jobId: string): Promise<Job | null> {
+    const job = await this.getJob(userId, jobId);
     if (!job) {
       return null;
     }
@@ -130,7 +132,7 @@ export class JobService {
       const [updated] = await db
         .update(jobs)
         .set({ blueprint, promptVersion: PROMPT_VERSION })
-        .where(eq(jobs.id, jobId))
+        .where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)))
         .returning();
       console.log(`✅ Successfully parsed blueprint for job ${jobId}`);
       return updated || null;
@@ -145,9 +147,9 @@ export class JobService {
     }
   }
 
-  async deleteJob(jobId: string): Promise<boolean> {
-    // Check if job exists
-    const job = await this.getJob(jobId);
+  async deleteJob(userId: string, jobId: string): Promise<boolean> {
+    // Check if job exists and belongs to user
+    const job = await this.getJob(userId, jobId);
     if (!job) {
       return false;
     }
@@ -184,8 +186,8 @@ export class JobService {
       await db.delete(candidates).where(eq(candidates.jobId, jobId));
     }
 
-    // Finally, delete the job
-    await db.delete(jobs).where(eq(jobs.id, jobId));
+    // Finally, delete the job (userId already verified in getJob)
+    await db.delete(jobs).where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)));
     return true;
   }
 }
