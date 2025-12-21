@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDropzone } from 'react-dropzone'
@@ -10,7 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Upload, FileText, X, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
+import { Upload, FileText, X, AlertCircle, CheckCircle2, Loader2, Sparkles } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 async function uploadCandidates(jobId: string, files: File[]): Promise<Candidate[]> {
   const formData = new FormData()
@@ -20,11 +22,31 @@ async function uploadCandidates(jobId: string, files: File[]): Promise<Candidate
   return apiUpload<Candidate[]>(`/api/jobs/${jobId}/candidates`, formData)
 }
 
+type ProcessingStep = {
+  id: string
+  label: string
+  status: 'pending' | 'processing' | 'completed' | 'error'
+}
+
+const PROCESSING_STEPS: ProcessingStep[] = [
+  { id: 'upload', label: 'Uploading files...', status: 'pending' },
+  { id: 'extract', label: 'Extracting text from PDF...', status: 'pending' },
+  { id: 'parse', label: 'Parsing CV structure...', status: 'pending' },
+  { id: 'skills', label: 'Reading key skills...', status: 'pending' },
+  { id: 'experience', label: 'Extracting experience...', status: 'pending' },
+  { id: 'education', label: 'Analyzing education...', status: 'pending' },
+  { id: 'profile', label: 'Creating candidate profile...', status: 'pending' },
+  { id: 'complete', label: 'Complete!', status: 'pending' },
+]
+
 export default function UploadCandidatesPage() {
   const router = useRouter()
   const params = useParams()
   const jobId = params.id as string
   const [files, setFiles] = useState<File[]>([])
+  const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>(PROCESSING_STEPS)
+  const [currentStepIndex, setCurrentStepIndex] = useState(0)
+  const [progress, setProgress] = useState(0)
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
@@ -32,10 +54,57 @@ export default function UploadCandidatesPage() {
     onSuccess: () => {
       // Invalidate candidates query to trigger refetch when we navigate back
       queryClient.invalidateQueries({ queryKey: ['candidates', jobId] })
-      // Navigate back to job page - the query will automatically refetch because it's invalidated
-      router.replace(`/jobs/${jobId}`)
+      // Complete all steps
+      setProcessingSteps(prev => prev.map(step => ({ ...step, status: 'completed' as const })))
+      setProgress(100)
+      // Navigate back to job page after a short delay to show completion
+      setTimeout(() => {
+        router.replace(`/jobs/${jobId}`)
+      }, 1500)
+    },
+    onError: () => {
+      setProcessingSteps(prev => prev.map(step => 
+        step.status === 'processing' ? { ...step, status: 'error' as const } : step
+      ))
     },
   })
+
+  // Simulate progress steps during upload
+  useEffect(() => {
+    if (mutation.isPending) {
+      setProcessingSteps(PROCESSING_STEPS.map(step => ({ ...step, status: 'pending' as const })))
+      setCurrentStepIndex(0)
+      setProgress(0)
+
+      // Simulate step progression
+      const stepInterval = setInterval(() => {
+        setCurrentStepIndex(prev => {
+          if (prev >= PROCESSING_STEPS.length - 1) {
+            clearInterval(stepInterval)
+            return prev
+          }
+          
+          setProcessingSteps(current => {
+            const updated = [...current]
+            if (updated[prev]) {
+              updated[prev] = { ...updated[prev], status: 'completed' }
+            }
+            if (updated[prev + 1]) {
+              updated[prev + 1] = { ...updated[prev + 1], status: 'processing' }
+            }
+            return updated
+          })
+
+          const newProgress = ((prev + 1) / PROCESSING_STEPS.length) * 90 // Leave 10% for actual completion
+          setProgress(newProgress)
+          
+          return prev + 1
+        })
+      }, 800) // Move to next step every 800ms
+
+      return () => clearInterval(stepInterval)
+    }
+  }, [mutation.isPending])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
@@ -155,6 +224,76 @@ export default function UploadCandidatesPage() {
             </div>
           )}
 
+          {/* Processing Progress */}
+          {mutation.isPending && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                      <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-sm">Processing CVs</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Our AI is analyzing your uploaded CVs...
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="shrink-0">
+                      {files.length} file{files.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+
+                  <Progress value={progress} className="h-2" />
+
+                  <div className="space-y-2 pt-2">
+                    {processingSteps.map((step, index) => {
+                      const isActive = step.status === 'processing'
+                      const isCompleted = step.status === 'completed'
+                      const isError = step.status === 'error'
+                      const isPending = step.status === 'pending'
+
+                      return (
+                        <div
+                          key={step.id}
+                          className={cn(
+                            "flex items-center gap-3 p-2 rounded-lg transition-all",
+                            isActive && "bg-primary/10 border border-primary/20",
+                            isCompleted && "bg-green-50/60 dark:bg-green-950/30",
+                            isError && "bg-red-50/60 dark:bg-red-950/30"
+                          )}
+                        >
+                          <div className="flex h-6 w-6 items-center justify-center shrink-0">
+                            {isCompleted ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-700 dark:text-green-400" />
+                            ) : isError ? (
+                              <AlertCircle className="h-5 w-5 text-red-700 dark:text-red-400" />
+                            ) : isActive ? (
+                              <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                            ) : (
+                              <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                            )}
+                          </div>
+                          <span
+                            className={cn(
+                              "text-sm transition-colors",
+                              isActive && "font-medium text-primary",
+                              isCompleted && "text-green-700 dark:text-green-400",
+                              isError && "text-red-700 dark:text-red-400",
+                              isPending && "text-muted-foreground"
+                            )}
+                          >
+                            {step.label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {mutation.isError && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -175,7 +314,7 @@ export default function UploadCandidatesPage() {
               {mutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Uploading...
+                  Processing...
                 </>
               ) : (
                 <>

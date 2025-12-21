@@ -34,3 +34,6 @@ drizzle/
 # Database
 *.db
 *.sqlite
+
+# Storage
+storage/

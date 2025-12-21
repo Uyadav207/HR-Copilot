@@ -14,7 +14,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="flex flex-col h-screen overflow-hidden">
         {/* App Header */}
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-background">
           <SidebarTrigger className="-ml-1" />
@@ -28,7 +28,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </header>
 
         {/* Page Content */}
-        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6 overflow-y-auto overflow-x-hidden">
           <div className="mx-auto w-full max-w-7xl">
             {children}
           </div>

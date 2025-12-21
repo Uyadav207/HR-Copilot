@@ -69,7 +69,7 @@ function SidebarHeaderContent() {
       </div>
       {!isCollapsed && (
         <div className="flex flex-col min-w-0">
-          <span className="text-base font-bold tracking-tight truncate">HR Autopilot</span>
+          <span className="text-base font-bold tracking-tight truncate">HR Copilot</span>
           <span className="text-xs text-muted-foreground truncate">AI-Powered Hiring</span>
         </div>
       )}
@@ -102,6 +102,9 @@ export function AppSidebar() {
                       isActive={isActive}
                       tooltip={isCollapsed ? item.name : undefined}
                       size="default"
+                      className={cn(
+                        isActive && "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                      )}
                     >
                       <Link href={item.href}>
                         <item.icon className="h-5 w-5 shrink-0" />

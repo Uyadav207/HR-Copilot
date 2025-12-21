@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { apiRequest } from '@/lib/api'
 import { Job } from '@/types'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Sparkles, FileText, AlertCircle } from 'lucide-react'
+import { Sparkles, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FloatingChat } from '@/components/floating-chat'
 import { InlineAIBar } from '@/components/inline-ai-bar'
@@ -153,172 +153,122 @@ export default function NewJobPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Create New Job</h1>
-        <p className="text-muted-foreground">
-          Use AI to generate your job description or paste it manually. Our AI will automatically parse and structure it for you.
-        </p>
-      </div>
+    <div className="flex flex-col items-center w-full">
+      <div className="space-y-8 max-w-3xl w-full">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-4xl font-bold tracking-tight">Create Job</h1>
+        </div>
 
-      {/* Info Card */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">AI-Powered Job Creation</CardTitle>
-          </div>
-          <CardDescription>
-            Use the chat assistant to generate your job description in natural language, or paste an existing JD. Our AI will automatically extract skills, requirements, and create an evaluation blueprint.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+        {/* Form */}
+        <Card className="border shadow-none">
+          <CardContent className="pt-8 pb-8 px-8">
+            <form onSubmit={handleSubmit} className="space-y-8">
+              <div className="space-y-3 pb-6 border-b">
+                <Label htmlFor="title" className="text-base font-semibold">
+                  Job Title
+                </Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Senior Backend Engineer"
+                  className="h-12 text-base border"
+                  required
+                  disabled={mutation.isPending}
+                />
+              </div>
 
-      <div className="space-y-6">
-        {/* Form Card */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Job Details</CardTitle>
-              <CardDescription>
-                Provide the job title and description. Use the AI assistant on the left to generate it, or paste from any job board or document.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="title" className="text-base">
-                    Job Title <span className="text-destructive">*</span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="description" className="text-base font-semibold">
+                    Job Description
                   </Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g., Senior Backend Engineer"
-                    className="h-11 bg-white/[0.03] border-white/10 backdrop-blur focus-visible:ring-ai-2/40"
+                  {isAnimating && (
+                    <div className="flex items-center gap-2 text-sm text-primary font-medium">
+                      <Sparkles className="h-4 w-4 animate-pulse" />
+                      <span>Updating...</span>
+                    </div>
+                  )}
+                </div>
+                <div className="relative">
+                  <Textarea
+                    ref={textareaRef}
+                    id="description"
+                    value={description}
+                    onChange={handleDescriptionChange}
+                    onFocus={handleDescriptionFocus}
+                    placeholder="Paste or describe the job requirements..."
+                    rows={16}
+                    className={cn(
+                      "resize-none text-sm transition-all border",
+                      isAnimating && "ring-2 ring-primary/30"
+                    )}
                     required
                     disabled={mutation.isPending}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Enter the exact job title as it appears in your job posting
-                  </p>
+                  <InlineAIBar
+                    jobTitle={title}
+                    onGenerate={handleInlineGenerate}
+                    isVisible={showInlineAI}
+                    onClose={() => setShowInlineAI(false)}
+                  />
                 </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="description" className="text-base">
-                      Job Description <span className="text-destructive">*</span>
-                    </Label>
-                    {isAnimating && (
-                      <div className="flex items-center gap-2 text-xs text-primary">
-                        <Sparkles className="h-3 w-3 animate-pulse" />
-                        <span>Updating...</span>
-                      </div>
-                    )}
+                {!showChat && !showInlineAI && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="default"
+                      onClick={() => setShowInlineAI(true)}
+                      className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Generate with AI
+                    </Button>
                   </div>
-                  <div className="relative space-y-2">
-                    <Textarea
-                      ref={textareaRef}
-                      id="description"
-                      value={description}
-                      onChange={handleDescriptionChange}
-                      onFocus={handleDescriptionFocus}
-                      placeholder="Use the AI assistant to generate a job description, or paste the full job description here. Include requirements, responsibilities, qualifications, and any other relevant details..."
-                      rows={18}
-                      className={cn(
-                        "resize-none font-mono text-sm transition-all duration-200",
-                        isAnimating && "ring-2 ring-primary/20"
-                      )}
-                      required
-                      disabled={mutation.isPending}
-                    />
-                    <InlineAIBar
-                      jobTitle={title}
-                      onGenerate={handleInlineGenerate}
-                      isVisible={showInlineAI}
-                      onClose={() => setShowInlineAI(false)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {!showChat && !showInlineAI && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="default"
-                            size="sm"
-                            onClick={() => setShowChat(true)}
-                            className="gap-2"
-                          >
-                            <Sparkles className="h-4 w-4" />
-                            Generate using AI
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowInlineAI(true)}
-                            className="gap-2"
-                          >
-                            <Sparkles className="h-4 w-4" />
-                            Ask AI
-                          </Button>
-                        </div>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        The more detailed the description, the better our AI can create an accurate evaluation blueprint
-                      </p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {description.length} characters
-                    </p>
-                  </div>
-                </div>
-
-                {mutation.isError && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      {mutation.error instanceof Error ? mutation.error.message : 'Failed to create job. Please try again.'}
-                    </AlertDescription>
-                  </Alert>
                 )}
+              </div>
 
-                <div className="flex gap-4 pt-4">
-                  <Button 
-                    type="submit" 
-                    size="lg" 
-                    variant="default"
-                    disabled={mutation.isPending || !title.trim() || !description.trim()}
-                    className="min-w-[140px]"
-                  >
-                    {mutation.isPending ? (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Create Job
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    onClick={() => router.back()}
-                    disabled={mutation.isPending}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+              {mutation.isError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {mutation.error instanceof Error ? mutation.error.message : 'Failed to create job. Please try again.'}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-4 pt-4 justify-center">
+                <Button 
+                  type="submit" 
+                  size="lg" 
+                  disabled={mutation.isPending || !title.trim() || !description.trim()}
+                  className="min-w-[140px] bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                >
+                  {mutation.isPending ? (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Job'
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => router.back()}
+                  disabled={mutation.isPending}
+                  className="min-w-[140px] font-semibold border-primary/30 hover:bg-primary/10 hover:border-primary/50"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
 
         {/* Floating Chat */}
         <FloatingChat

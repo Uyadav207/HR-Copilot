@@ -33,20 +33,7 @@ export default function Home() {
             Manage your hiring pipeline with AI-powered insights
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Link href="/jobs/new">
-            <Button size="lg" className="w-full sm:w-auto">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Create job with AI
-            </Button>
-          </Link>
-          <Link href="/jobs">
-            <Button variant="outline" size="lg" className="w-full sm:w-auto">
-              <Briefcase className="h-4 w-4 mr-2" />
-              View jobs
-            </Button>
-          </Link>
-        </div>
+        
       </div>
 
       {/* Stats Grid */}
@@ -155,9 +142,9 @@ export default function Home() {
                       </div>
                       <div className="shrink-0">
                         {job.blueprint ? (
-                          <span className="text-xs font-medium text-green-600 whitespace-nowrap">Ready</span>
+                          <span className="text-xs font-medium text-green-700 dark:text-green-400 whitespace-nowrap">Ready</span>
                         ) : (
-                          <span className="text-xs font-medium text-yellow-600 whitespace-nowrap">Processing</span>
+                          <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400 whitespace-nowrap">Processing</span>
                         )}
                       </div>
                     </div>

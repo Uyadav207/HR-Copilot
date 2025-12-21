@@ -152,6 +152,39 @@ export interface Evaluation {
     gap_analysis: string
     employment_gaps: Array<any>
     chunk_citations: string[]
+    detailed_education_analysis?: Array<{
+      requirement_type: string
+      jd_requirement: string
+      jd_requirement_details: string
+      candidate_has: string
+      degree_level: string
+      degree_field: string
+      match_status: 'exact_match' | 'similar_match' | 'no_match'
+      match_reason: string
+      note: string | null
+      evidence: {
+        cv_snippet: string
+        chunkId: string
+        chunkIndex: number
+      } | null
+    }>
+    detailed_work_experience_analysis?: Array<{
+      requirement_type: string
+      jd_requirement: string
+      jd_requirement_details: string
+      candidate_has: string
+      experience_type: string
+      candidate_years: number
+      required_years: number
+      match_status: 'exact_match' | 'similar_match' | 'no_match'
+      match_reason: string
+      note: string | null
+      evidence: {
+        cv_snippet: string
+        chunkId: string
+        chunkIndex: number
+      } | null
+    }>
   }
   skills_comparison?: Array<{
     skill: string

@@ -318,6 +318,41 @@ export class EvaluationService {
     const concerns = (evaluation.concerns || []) as Array<{ point?: string }>;
     const keyStrengths = strengths.map((s) => s.point || "").filter(Boolean).join(", ");
     
+    // Extract job requirements from blueprint
+    let jobRequirements = "";
+    let candidateExperience = "";
+    if (emailType === "reject" && job.blueprint) {
+      const blueprint = job.blueprint as any;
+      const requiredSkills = blueprint.required_skills || [];
+      const experienceRange = blueprint.experience_range || {};
+      const responsibilities = blueprint.responsibilities || [];
+      
+      // Format job requirements
+      const skillsText = requiredSkills
+        .filter((s: any) => s.priority === "must_have")
+        .map((s: any) => {
+          const years = s.years_preferred ? `${s.years_preferred}+ years` : "";
+          return `${s.skill}${years ? ` (${years})` : ""}`;
+        })
+        .join(", ");
+      
+      const expText = experienceRange.min_years 
+        ? `${experienceRange.min_years}${experienceRange.max_years ? `-${experienceRange.max_years}` : "+"} years of experience`
+        : "";
+      
+      const respText = responsibilities.slice(0, 3).join(", ");
+      
+      jobRequirements = [skillsText, expText, respText].filter(Boolean).join(". ");
+      
+      // Extract candidate experience from profile
+      if (candidate.profile) {
+        const profile = candidate.profile as any;
+        const candidateSkills = (profile.skills || []).slice(0, 5).map((s: any) => s.skill).join(", ");
+        const totalExp = profile.total_years_experience || 0;
+        candidateExperience = `Total experience: ${totalExp} years. Skills: ${candidateSkills}`;
+      }
+    }
+    
     // For rejection emails, provide detailed concerns for constructive feedback
     let mainConcerns = "";
     if (emailType === "reject") {
@@ -367,7 +402,9 @@ export class EvaluationService {
         emailType === "invite" ? keyStrengths : null,
         emailType === "reject" ? mainConcerns : null,
         emailType === "hold" ? "We're still evaluating candidates" : null,
-        emailType === "invite" ? hiringManager : null
+        emailType === "invite" ? hiringManager : null,
+        emailType === "reject" ? jobRequirements : null,
+        emailType === "reject" ? candidateExperience : null
       );
     } catch (error) {
       throw new Error(`Failed to generate email: ${error}`);
@@ -580,6 +617,9 @@ function normalizeEvaluationOutput(raw: Record<string, any>): Record<string, any
       matches: !!asObject(experience_analysis).matches,
       gap_analysis: asObject(experience_analysis).gap_analysis ?? "",
       employment_gaps: asArray(asObject(experience_analysis).employment_gaps),
+      chunk_citations: asArray(asObject(experience_analysis).chunkCitations ?? asObject(experience_analysis).chunk_citations),
+      detailed_education_analysis: asArray(asObject(experience_analysis).detailed_education_analysis),
+      detailed_work_experience_analysis: asArray(asObject(experience_analysis).detailed_work_experience_analysis),
     },
 
     skills_comparison: asArray(skills_comparison),

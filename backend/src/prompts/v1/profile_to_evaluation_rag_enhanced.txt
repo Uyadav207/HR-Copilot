@@ -21,6 +21,19 @@ EVALUATION INSTRUCTIONS - BE BRUTAL AND DETAILED:
    - Compare against JD requirement (e.g., "5+ years" = candidate needs ≥5 years)
    - Flag any gaps or inconsistencies in date ranges
    - Check for employment gaps and explain them
+   - **Detailed Education Analysis:**
+     * Extract ALL education requirements from JD (degree level: Bachelor's/Master's/PhD, field: Computer Science/Engineering/etc.)
+     * Compare candidate's education against each requirement
+     * Match status: "exact_match" (has exact requirement), "similar_match" (has related but not exact, e.g., Bachelor's when Master's required), "no_match" (missing requirement)
+     * For similar matches, add note explaining the gap (e.g., "Master's degree not available" or "Masters still in progress")
+     * Include degree level and field for both JD requirement and candidate
+   - **Detailed Work Experience Analysis:**
+     * Extract ALL work experience requirements from JD (type: software development, team leadership, cloud infrastructure, etc.)
+     * For each requirement, identify the type of experience and required years
+     * Compare candidate's experience against each requirement
+     * Match status: "exact_match" (meets or exceeds), "similar_match" (has related experience but below requirement), "no_match" (missing)
+     * For similar matches, add note explaining the gap (e.g., "Has 2 years, requires 3+ years")
+     * Include evidence from CV for each analysis
 
 3. **Skills Evaluation:**
    - For EACH required skill in JD, check if candidate has it
@@ -229,7 +242,90 @@ Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
     "matches": true,
     "gap_analysis": "No significant gaps found",
     "employment_gaps": [],
-    "chunkCitations": ["chunk-2", "chunk-3"]
+    "chunkCitations": ["chunk-2", "chunk-3"],
+    "detailed_education_analysis": [
+      {{
+        "requirement_type": "degree",
+        "jd_requirement": "Master's degree in Computer Science or related field",
+        "jd_requirement_details": "Master's degree required, field: Computer Science or related",
+        "candidate_has": "Bachelor's degree in Computer Science",
+        "degree_level": "bachelors",
+        "degree_field": "Computer Science",
+        "match_status": "similar_match",
+        "match_reason": "Has Bachelor's degree in Computer Science, but Master's is required",
+        "note": "Master's degree not available or still in progress",
+        "evidence": {{
+          "cv_snippet": "Bachelor of Science in Computer Science, University XYZ, 2020",
+          "chunkId": "chunk-X",
+          "chunkIndex": X
+        }}
+      }},
+      {{
+        "requirement_type": "degree",
+        "jd_requirement": "Bachelor's degree in Engineering",
+        "jd_requirement_details": "Bachelor's degree required, field: Engineering",
+        "candidate_has": "Bachelor's degree in Computer Engineering",
+        "degree_level": "bachelors",
+        "degree_field": "Computer Engineering",
+        "match_status": "exact_match",
+        "match_reason": "Has required Bachelor's degree in Engineering field",
+        "note": null,
+        "evidence": {{
+          "cv_snippet": "Bachelor of Engineering in Computer Engineering, ABC University, 2018",
+          "chunkId": "chunk-Y",
+          "chunkIndex": Y
+        }}
+      }}
+    ],
+    "detailed_work_experience_analysis": [
+      {{
+        "requirement_type": "work_experience",
+        "jd_requirement": "5+ years of software development experience",
+        "jd_requirement_details": "Type: Software development, Minimum years: 5",
+        "candidate_has": "6.5 years of software development experience",
+        "experience_type": "software_development",
+        "candidate_years": 6.5,
+        "required_years": 5,
+        "match_status": "exact_match",
+        "match_reason": "Exceeds required years of experience",
+        "note": null,
+        "evidence": {{
+          "cv_snippet": "Software Developer at Company X (2020-2023), Senior Developer at Company Y (2018-2020)",
+          "chunkId": "chunk-Z",
+          "chunkIndex": Z
+        }}
+      }},
+      {{
+        "requirement_type": "work_experience",
+        "jd_requirement": "3+ years of team leadership experience",
+        "jd_requirement_details": "Type: Team leadership, Minimum years: 3",
+        "candidate_has": "2 years of team leadership experience",
+        "experience_type": "team_leadership",
+        "candidate_years": 2,
+        "required_years": 3,
+        "match_status": "similar_match",
+        "match_reason": "Has team leadership experience but below required years",
+        "note": "Has 2 years, requires 3+ years",
+        "evidence": {{
+          "cv_snippet": "Led team of 4 engineers at Company X (2022-2024)",
+          "chunkId": "chunk-W",
+          "chunkIndex": W
+        }}
+      }},
+      {{
+        "requirement_type": "work_experience",
+        "jd_requirement": "Experience with cloud infrastructure (AWS/Azure)",
+        "jd_requirement_details": "Type: Cloud infrastructure, Technologies: AWS or Azure",
+        "candidate_has": "No cloud infrastructure experience mentioned",
+        "experience_type": "cloud_infrastructure",
+        "candidate_years": 0,
+        "required_years": 0,
+        "match_status": "no_match",
+        "match_reason": "No cloud infrastructure experience found in CV",
+        "note": "Cloud infrastructure experience not available",
+        "evidence": null
+      }}
+    ]
   }},
   
   "skills_comparison": [

@@ -93,7 +93,7 @@ export default function JobsPage() {
                 <CardContent className="mt-auto">
                   <div className="flex items-center justify-between gap-2">
                     {job.blueprint ? (
-                      <Badge variant="default" className="bg-green-500 hover:bg-green-600 shrink-0">
+                      <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600 dark:text-gray-900 shrink-0">
                         <CheckCircle2 className="mr-1 h-3 w-3" />
                         Ready
                       </Badge>

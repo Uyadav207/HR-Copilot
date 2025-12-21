@@ -1,6 +1,8 @@
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { db } from "../database.js";
 import { candidates, type Candidate, type NewCandidate, type CandidateStatus } from "../models/candidate.js";
+import { jobs } from "../models/job.js";
+import { evaluations } from "../models/evaluation.js";
 import { auditLogs, type NewAuditLog } from "../models/auditLog.js";
 import { PDFParser } from "./pdfParser.js";
 import { LLMClient } from "./llmClient.js";
@@ -11,8 +13,15 @@ import { emailDrafts } from "../models/emailDraft.js";
 import { randomUUID } from "crypto";
 import { CVChunkingService } from "./cvChunkingService.js";
 import { VectorStoreService } from "./vectorStoreService.js";
+import { StorageService } from "./storageService.js";
 
 export class CandidateService {
+  private storageService: StorageService;
+
+  constructor() {
+    this.storageService = new StorageService();
+  }
+
   async uploadCandidates(
     jobId: string,
     files: Array<{ filename: string; content: Buffer }>
@@ -24,6 +33,18 @@ export class CandidateService {
         continue;
       }
 
+      // Create candidate ID first so we can use it for file storage
+      const candidateId = randomUUID();
+
+      // Store PDF file
+      try {
+        await this.storageService.storePDF(candidateId, file.filename, file.content);
+        console.log(`✅ Stored PDF for candidate ${candidateId}: ${file.filename}`);
+      } catch (error) {
+        console.error(`❌ Failed to store PDF for candidate ${candidateId}:`, error);
+        // Continue anyway - we'll still create the candidate record
+      }
+
       // Extract text from PDF
       let cvText: string;
       try {
@@ -31,7 +52,7 @@ export class CandidateService {
       } catch (error) {
         // Create candidate with error status
         const errorCandidate: NewCandidate = {
-          id: randomUUID(),
+          id: candidateId,
           jobId,
           cvFilename: file.filename,
           cvRawText: `Error parsing PDF: ${error instanceof Error ? error.message : String(error)}`,
@@ -47,7 +68,7 @@ export class CandidateService {
 
       // Create candidate record
       const newCandidate: NewCandidate = {
-        id: randomUUID(),
+        id: candidateId,
         jobId,
         cvFilename: file.filename,
         cvRawText: cvText,
@@ -61,6 +82,20 @@ export class CandidateService {
     }
 
     return createdCandidates;
+  }
+
+  /**
+   * Get PDF file for a candidate
+   */
+  async getPDF(candidateId: string, filename: string): Promise<Buffer | null> {
+    return await this.storageService.getPDF(candidateId, filename);
+  }
+
+  /**
+   * Check if PDF exists for a candidate
+   */
+  async pdfExists(candidateId: string, filename: string): Promise<boolean> {
+    return await this.storageService.pdfExists(candidateId, filename);
   }
 
   async parseCvBackground(candidateId: string): Promise<void> {
@@ -262,7 +297,53 @@ export class CandidateService {
     return candidate || null;
   }
 
+  /**
+   * Get all candidates across all jobs with their evaluations and job titles
+   */
+  async getAllCandidatesWithEvaluations(): Promise<Array<Candidate & { jobTitle: string; evaluation: any | null }>> {
+    const allCandidates = await db
+      .select({
+        candidate: candidates,
+        jobTitle: jobs.title,
+      })
+      .from(candidates)
+      .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+      .orderBy(desc(candidates.createdAt));
+
+    // Get all evaluations for these candidates
+    const candidateIds = allCandidates.map((c) => c.candidate.id);
+    const allEvaluations = candidateIds.length > 0
+      ? await db
+          .select()
+          .from(evaluations)
+          .where(inArray(evaluations.candidateId, candidateIds))
+      : [];
+
+    // Create a map of candidateId -> evaluation
+    const evaluationMap = new Map(allEvaluations.map((e) => [e.candidateId, e]));
+
+    // Combine candidates with their evaluations and job titles
+    return allCandidates.map(({ candidate, jobTitle }) => ({
+      ...candidate,
+      jobTitle: jobTitle || "Unknown Job",
+      evaluation: evaluationMap.get(candidate.id) || null,
+    }));
+  }
+
   async deleteCandidate(candidateId: string): Promise<boolean> {
+    // Get candidate first to get filename for PDF deletion
+    const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
+    
+    // Delete PDF file if candidate exists
+    if (candidate) {
+      try {
+        await this.storageService.deletePDF(candidateId, candidate.cvFilename);
+      } catch (error) {
+        console.error(`Error deleting PDF for candidate ${candidateId}:`, error);
+        // Continue with candidate deletion even if PDF deletion fails
+      }
+    }
+
     // Delete chunks from Pinecone if configured
     if (settings.pineconeApiKey) {
       try {

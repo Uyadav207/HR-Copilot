@@ -101,4 +101,41 @@ candidates.delete("/candidates/:id", async (c) => {
   return c.body(null, 204);
 });
 
+// Get all candidates with evaluations across all jobs
+candidates.get("/candidates", async (c) => {
+  const allCandidates = await candidateService.getAllCandidatesWithEvaluations();
+  return c.json(toSnakeCaseResponse(allCandidates));
+});
+
+// Get PDF file for a candidate
+candidates.get("/candidates/:id/pdf", async (c) => {
+  const id = c.req.param("id");
+  const candidate = await candidateService.getCandidate(id);
+  
+  if (!candidate) {
+    return c.json({ error: "Candidate not found" }, 404);
+  }
+
+  // Check if PDF exists
+  const pdfExists = await candidateService.pdfExists(id, candidate.cvFilename);
+  if (!pdfExists) {
+    return c.json({ error: "PDF file not found" }, 404);
+  }
+
+  // Get PDF file
+  const pdfBuffer = await candidateService.getPDF(id, candidate.cvFilename);
+  if (!pdfBuffer) {
+    return c.json({ error: "Failed to retrieve PDF file" }, 500);
+  }
+
+  // Return PDF with proper headers
+  return new Response(pdfBuffer, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${candidate.cvFilename}"`,
+      "Content-Length": pdfBuffer.length.toString(),
+    },
+  });
+});
+
 export default candidates;

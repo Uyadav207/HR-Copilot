@@ -347,7 +347,9 @@ export class LLMClient {
     keyStrengths?: string | null,
     mainConcerns?: string | null,
     holdReason?: string | null,
-    hiringManager?: string | null
+    hiringManager?: string | null,
+    jobRequirements?: string | null,
+    candidateExperience?: string | null
   ): Promise<Record<string, any>> {
     const { getCurrentPrompt } = await import("../prompts/registry.js");
 
@@ -369,7 +371,8 @@ export class LLMClient {
       prompt = promptTemplate
         .replace("{job_title}", jobTitle)
         .replace("{candidate_name}", candidateName)
-        .replace("{evaluation_summary}", evaluationSummary)
+        .replace("{job_requirements}", jobRequirements || "Requirements not specified")
+        .replace("{candidate_experience}", candidateExperience || "Experience not specified")
         .replace("{main_concerns}", concernsText);
     } else if (emailType === "hold") {
       promptTemplate = getCurrentPrompt("email_hold");

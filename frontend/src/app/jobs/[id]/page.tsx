@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -31,6 +31,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { format } from 'date-fns'
 import { useToast } from '@/hooks/use-toast'
+import { cn } from '@/lib/utils'
+import { ToastAction } from '@/components/ui/toast'
 
 async function fetchJob(id: string): Promise<Job> {
   return apiRequest<Job>(`/api/jobs/${id}`)
@@ -82,7 +84,75 @@ export default function JobDetailPage() {
     queryFn: () => fetchCandidates(jobId),
     enabled: !!jobId,
     refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      // Poll every 3 seconds if there are unparsed candidates
+      const data = query.state.data as Candidate[] | undefined
+      if (data && data.some(c => !c.profile)) {
+        return 3000 // Poll every 3 seconds
+      }
+      return false // Stop polling when all are parsed
+    },
   })
+
+  // Track previous candidate states to detect when CVs are parsed
+  const previousCandidatesRef = useRef<Map<string, { hasProfile: boolean; status: string }>>(new Map())
+
+  useEffect(() => {
+    if (!candidates) return
+
+    // Check for newly parsed candidates
+    candidates.forEach((candidate) => {
+      const previous = previousCandidatesRef.current.get(candidate.id)
+      const currentHasProfile = candidate.profile !== null
+      const currentStatus = candidate.status
+
+      // If candidate was previously unparsed and now has a profile
+      // Only show notification if we had a previous state (not initial load)
+      if (previous && !previous.hasProfile && currentHasProfile) {
+        const candidateName = candidate.name || candidate.cv_filename
+        
+        toast({
+          title: 'CV Parsed Successfully! 🎉',
+          description: `${candidateName} is now ready to view.`,
+          variant: 'success',
+          action: (
+            <ToastAction
+              altText="View CV"
+              onClick={() => {
+                router.push(`/jobs/${jobId}/candidates/${candidate.id}`)
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600 dark:text-gray-900 border-0"
+            >
+              View CV
+            </ToastAction>
+          ),
+        })
+      }
+
+      // Update the ref with current state (or initialize if first time)
+      if (!previous) {
+        // First time seeing this candidate - initialize without showing notification
+        previousCandidatesRef.current.set(candidate.id, {
+          hasProfile: currentHasProfile,
+          status: currentStatus,
+        })
+      } else {
+        // Update existing state
+        previousCandidatesRef.current.set(candidate.id, {
+          hasProfile: currentHasProfile,
+          status: currentStatus,
+        })
+      }
+    })
+
+    // Clean up refs for candidates that no longer exist
+    const currentIds = new Set(candidates.map(c => c.id))
+    previousCandidatesRef.current.forEach((_, id) => {
+      if (!currentIds.has(id)) {
+        previousCandidatesRef.current.delete(id)
+      }
+    })
+  }, [candidates, jobId, router, toast])
 
   const updateMutation = useMutation({
     mutationFn: (data: { title: string; raw_description: string }) => updateJob(jobId, data),
@@ -236,7 +306,7 @@ export default function JobDetailPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight">{job.title}</h1>
               {job.blueprint ? (
-                <Badge className="bg-green-500 hover:bg-green-600">
+                <Badge className="bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600 dark:text-gray-900">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
                   Ready
                 </Badge>
@@ -433,71 +503,101 @@ export default function JobDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {candidates.map((candidate) => (
-                    <div key={candidate.id} className="relative group">
-                      <Link href={`/jobs/${jobId}/candidates/${candidate.id}`}>
-                        <Card className="hover:bg-accent cursor-pointer transition-colors border-2 hover:border-primary/50">
-                          <CardContent className="py-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm truncate">
-                                  {candidate.name || candidate.cv_filename}
+                  {candidates.map((candidate) => {
+                    const isParsed = candidate.profile !== null
+                    const candidateCard = (
+                      <Card className={cn(
+                        "transition-colors border-2",
+                        isParsed 
+                          ? "hover:bg-accent cursor-pointer hover:border-primary/50" 
+                          : "opacity-60 cursor-not-allowed"
+                      )}>
+                        <CardContent className="py-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">
+                                {candidate.name || candidate.cv_filename}
+                              </p>
+                              {candidate.email && (
+                                <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                  {candidate.email}
                                 </p>
-                                {candidate.email && (
-                                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                                    {candidate.email}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge
-                                  variant={
-                                    candidate.status === 'evaluated'
-                                      ? 'default'
-                                      : candidate.status === 'invited'
-                                      ? 'default'
-                                      : 'outline'
-                                  }
-                                  className="shrink-0 text-xs"
-                                >
-                                  {candidate.status}
-                                </Badge>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                                      onClick={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                      }}
-                                    >
-                                      <MoreVertical className="h-3.5 w-3.5" />
-                                      <span className="sr-only">Open menu</span>
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-40">
-                                    <DropdownMenuItem
-                                      onClick={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        handleDeleteCandidate(candidate.id)
-                                      }}
-                                      className="text-destructive focus:text-destructive"
-                                    >
-                                      <Trash2 className="mr-2 h-3.5 w-3.5" />
-                                      <span>Delete</span>
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
+                              )}
+                              {!isParsed && (
+                                <p className="text-xs text-muted-foreground mt-1 italic">
+                                  CV parsing in progress...
+                                </p>
+                              )}
                             </div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    </div>
-                  ))}
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={
+                                  candidate.status === 'evaluated'
+                                    ? 'default'
+                                    : candidate.status === 'invited'
+                                    ? 'default'
+                                    : 'outline'
+                                }
+                                className="shrink-0 text-xs"
+                              >
+                                {candidate.status}
+                              </Badge>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                    }}
+                                  >
+                                    <MoreVertical className="h-3.5 w-3.5" />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-40">
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      handleDeleteCandidate(candidate.id)
+                                    }}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                    <span>Delete</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+
+                    return (
+                      <div key={candidate.id} className="relative group">
+                        {isParsed ? (
+                          <Link href={`/jobs/${jobId}/candidates/${candidate.id}`}>
+                            {candidateCard}
+                          </Link>
+                        ) : (
+                          <div onClick={(e) => {
+                            e.preventDefault()
+                            toast({
+                              title: "CV Not Parsed",
+                              description: "Please wait for the CV to be parsed before viewing the candidate profile.",
+                              variant: "default",
+                            })
+                          }}>
+                            {candidateCard}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                   <Link href={`/jobs/${jobId}/candidates/upload`}>
                     <Button variant="outline" className="w-full mt-4" size="sm">
                       <Upload className="mr-2 h-3 w-3" />

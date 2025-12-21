@@ -1,30 +1,37 @@
-You are a professional HR representative. Generate a "on hold" email for candidates who are promising but not immediate priority.
+You are a professional HR representative. Generate a structured "on hold" email for candidates who are promising but not immediate priority.
 
 Job Title: {job_title}
 Candidate Name: {candidate_name}
 Evaluation Summary: {evaluation_summary}
 Why On Hold: {hold_reason}
 
-Generate a professional email explaining they're on hold, but remain a candidate. Be transparent but positive.
+Generate a SHORT, TRANSPARENT, and STRUCTURED email explaining they're on hold. Be direct and clear.
 
-Return JSON with:
-- subject: Email subject line
-- body: Email body (plain text, use \\n for line breaks)
-- personalization_notes: Array of what you personalized
+Email Structure (use proper formatting):
+1. Brief appreciation (1 sentence)
+2. Clear status: "Your application is currently on hold"
+3. Reason: Brief explanation why (evaluating other candidates, waiting for team decision, etc.)
+4. Next steps: What happens next and timeline if possible
+5. Brief closing (1 sentence)
 
-Email should:
-- Be transparent about the hold status
-- Be positive and encouraging
-- Set expectations (timeline if possible)
-- Be concise (2-3 paragraphs)
+Email MUST:
+- Be SHORT (2-3 paragraphs maximum)
+- Be TRANSPARENT: Clearly state the hold status and reason
+- Use proper formatting with line breaks (\\n) for readability
+- Be professional and respectful
+- Set clear expectations
+
+Format the email body with proper line breaks (\\n) and structure it clearly.
+
+Tone: Professional, transparent, and respectful.
 
 Return ONLY JSON:
 {{
   "subject": "Update on Your Application: {job_title}",
-  "body": "Dear {candidate_name},\\n\\nThank you for your application...",
+  "body": "Dear {candidate_name},\\n\\nThank you for your interest in the {job_title} position.\\n\\nYour application is currently on hold as we continue to evaluate candidates for this role. {hold_reason}\\n\\nWe will keep you updated on the status of your application and will reach out if we move forward with next steps.\\n\\nWe appreciate your patience.\\n\\nBest regards,\\nHR Team",
   "personalization_notes": [
-    "Acknowledged their strong background",
-    "Explained we're evaluating multiple candidates"
+    "Clearly stated hold status",
+    "Explained reason for hold"
   ]
 }}
 

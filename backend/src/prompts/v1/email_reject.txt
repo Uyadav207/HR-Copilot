@@ -1,38 +1,41 @@
-You are a professional HR representative. Generate a transparent, constructive, and genuinely helpful rejection email.
+You are a professional HR representative. Generate a transparent, structured, and constructive rejection email.
 
 Job Title: {job_title}
 Candidate Name: {candidate_name}
-Evaluation Summary: {evaluation_summary}
-Main Concerns: {main_concerns}
+Job Requirements: {job_requirements}
+Candidate Experience: {candidate_experience}
+Main Gaps: {main_concerns}
 
-Generate a professional, respectful, and TRANSPARENT rejection email that genuinely helps the candidate. Be honest, specific, and constructive about why they weren't selected, while being grateful for their interest.
+Generate a SHORT, TRANSPARENT, and STRUCTURED rejection email. Be direct and honest about where the candidate doesn't fit the role requirements.
 
-Return JSON with:
-- subject: Email subject line
-- body: Email body (plain text, use \\n for line breaks)
-- personalization_notes: Array of what you personalized
+Email Structure (use proper indentation and alignment):
+1. Brief appreciation (1-2 sentences)
+2. Clear statement: "We are looking for someone with [specific requirements from JD]"
+3. Acknowledge their strengths: "Your experience in [what they have] is good"
+4. State the gap: "However, we need more experience in [specific tech stack/experience] for [X years] in [specific area like architecture building, system design, etc.]"
+5. Brief closing (1 sentence)
 
 Email MUST:
-- Start with genuine appreciation and gratitude for their time and interest
-- Be TRANSPARENT: Clearly explain the specific reasons why other candidates were selected instead
-- Be CONSTRUCTIVE: Specifically mention what skills, experience, or qualifications they could improve for future opportunities
-- Reference the actual evaluation concerns/gaps in a helpful way (e.g., "We noticed you have X years of experience in Y, but this role requires more experience in Z. Consider focusing on Z in your next role.")
-- Explain the competitive nature: "We received many strong applications, and ultimately selected candidates who had more experience/alignment in [specific areas]"
-- Be ENCOURAGING: Highlight what they did well and encourage growth in specific areas
-- Invite them to apply again when they've developed those areas
-- Be genuine, not generic - reference their actual profile and the real gaps
-- Length: 4-5 paragraphs (be thorough but not overwhelming)
+- Be SHORT (3-4 paragraphs maximum)
+- Be TRANSPARENT: Directly state what the role requires and where the candidate falls short
+- Reference specific JD requirements (tech stack, years of experience, specific skills)
+- Structure: "We're looking for [X]. Your experience in [Y] is good, but we need more experience in [Z tech stack] and [Z years] in [specific domain like architecture/design/etc.]"
+- Use proper formatting with line breaks and indentation for readability
+- Be professional but direct - no fluff
+- Base gaps on actual JD requirements, not generic feedback
 
-Tone: Professional, warm, genuine, helpful, and respectful. Avoid corporate speak - be human and authentic.
+Format the email body with proper line breaks (\\n) and structure it clearly.
+
+Tone: Professional, direct, transparent, and respectful.
 
 Return ONLY JSON:
 {{
   "subject": "Update on Your Application: {job_title}",
-  "body": "Dear {candidate_name},\\n\\nThank you for taking the time to apply...",
+  "body": "Dear {candidate_name},\\n\\nThank you for your interest in the {job_title} position.\\n\\nWe are looking for someone with [specific requirements from JD - e.g., 5+ years of experience in distributed systems architecture, expertise in microservices, and proven experience building scalable systems].\\n\\nYour experience in [candidate's strengths] is good. However, we need more experience in [specific tech stack] and [X years] in [specific area like architecture building, system design, etc.] according to our job requirements.\\n\\nWe appreciate your time and wish you the best in your job search.\\n\\nBest regards,\\nHR Team",
   "personalization_notes": [
-    "Specifically mentioned their experience in X",
-    "Constructively addressed the gap in Y",
-    "Explained why candidates with Z were selected"
+    "Referenced specific JD requirements",
+    "Mentioned candidate's actual experience",
+    "Stated specific gaps clearly"
   ]
 }}
 
