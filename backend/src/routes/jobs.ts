@@ -62,7 +62,7 @@ jobs.post("/jobs/:id/parse-blueprint", async (c) => {
 jobs.post("/jobs/generate-description", async (c) => {
   try {
     const body = await c.req.json();
-    const { message, conversation_history, job_title } = body;
+    const { message, conversation_history, job_title, stream } = body;
 
     if (!message || typeof message !== "string") {
       return c.json({ error: "Message is required" }, 400);
@@ -71,6 +71,45 @@ jobs.post("/jobs/generate-description", async (c) => {
     const { LLMClient } = await import("../services/llmClient.js");
     const llmClient = new LLMClient();
 
+    // If streaming is requested, use streaming endpoint
+    if (stream) {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            const generator = llmClient.generateJobDescriptionStream(
+              message,
+              conversation_history || [],
+              job_title
+            );
+
+            for await (const chunk of generator) {
+              const data = JSON.stringify(chunk) + "\n";
+              controller.enqueue(encoder.encode(data));
+            }
+            controller.close();
+          } catch (error) {
+            console.error("Error in streaming:", error);
+            const errorData = JSON.stringify({ 
+              type: 'error', 
+              content: error instanceof Error ? error.message : 'Streaming error' 
+            }) + "\n";
+            controller.enqueue(encoder.encode(errorData));
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
+      });
+    }
+
+    // Non-streaming fallback
     const jobDescription = await llmClient.generateJobDescription(
       message,
       conversation_history || [],

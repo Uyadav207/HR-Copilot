@@ -1,92 +1,133 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings as SettingsIcon, Bell, User, Shield } from 'lucide-react'
+import { Settings as SettingsIcon, Bell, User, Shield, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const }
+  }
+}
+
+const settingsCards = [
+  {
+    title: 'Account',
+    description: 'Manage your account information and profile',
+    icon: User,
+    gradient: 'from-blue-500 to-cyan-500',
+    comingSoon: true
+  },
+  {
+    title: 'Notifications',
+    description: 'Configure notification preferences',
+    icon: Bell,
+    gradient: 'from-purple-500 to-pink-500',
+    comingSoon: true
+  },
+  {
+    title: 'Security',
+    description: 'Manage security and privacy settings',
+    icon: Shield,
+    gradient: 'from-green-500 to-emerald-500',
+    comingSoon: true
+  },
+  {
+    title: 'Preferences',
+    description: 'Customize your application preferences',
+    icon: SettingsIcon,
+    gradient: 'from-amber-500 to-orange-500',
+    comingSoon: true
+  }
+]
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+    <div className="space-y-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="space-y-2"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+            <SettingsIcon className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Settings</h1>
+        </div>
         <p className="text-muted-foreground">
           Manage your account settings and preferences
         </p>
-      </div>
+      </motion.div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-primary" />
-              <CardTitle>Account</CardTitle>
-            </div>
-            <CardDescription>Manage your account information</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Account settings coming soon
-            </p>
-            <Button variant="outline" disabled>
-              Edit Profile
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <CardTitle>Notifications</CardTitle>
-            </div>
-            <CardDescription>Configure notification preferences</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Notification settings coming soon
-            </p>
-            <Button variant="outline" disabled>
-              Configure
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              <CardTitle>Security</CardTitle>
-            </div>
-            <CardDescription>Manage security and privacy settings</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Security settings coming soon
-            </p>
-            <Button variant="outline" disabled>
-              Manage
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <SettingsIcon className="h-5 w-5 text-primary" />
-              <CardTitle>Preferences</CardTitle>
-            </div>
-            <CardDescription>Customize your application preferences</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Preference settings coming soon
-            </p>
-            <Button variant="outline" disabled>
-              Customize
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Settings Cards */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="grid gap-6 md:grid-cols-2"
+      >
+        {settingsCards.map((setting) => {
+          const Icon = setting.icon
+          return (
+            <motion.div
+              key={setting.title}
+              variants={itemVariants}
+              whileHover={{ y: -4, scale: 1.02 }}
+              className="group relative"
+            >
+              {/* Glow effect on hover */}
+              <div className={`absolute -inset-0.5 bg-gradient-to-r ${setting.gradient} rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity`} />
+              
+              <Card className="relative h-full border-2 hover:border-purple-500/30 transition-all duration-300 overflow-hidden">
+                {/* Gradient accent */}
+                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${setting.gradient} opacity-5 rounded-bl-full`} />
+                
+                <CardHeader>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${setting.gradient} flex items-center justify-center shadow-lg`}>
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                    <CardTitle className="text-xl">{setting.title}</CardTitle>
+                  </div>
+                  <CardDescription>{setting.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {setting.comingSoon ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border">
+                        <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                        <span className="text-sm text-muted-foreground">Coming soon</span>
+                      </div>
+                      <Button variant="outline" disabled className="w-full">
+                        Configure Settings
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button variant="outline" className="w-full">
+                      Manage
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )
+        })}
+      </motion.div>
     </div>
   )
 }

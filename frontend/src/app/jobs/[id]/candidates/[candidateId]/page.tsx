@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { apiRequest } from '@/lib/api'
 import { Candidate, Evaluation, EmailDraft, AuditLog } from '@/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,7 +19,7 @@ import {
 import { format } from 'date-fns'
 import React, { useState, useEffect } from 'react'
 import { useToast } from '@/hooks/use-toast'
-import { Trash2, MoreVertical, ExternalLink, AlertCircle, CheckCircle2, XCircle, Link as LinkIcon, MessageCircle, ChevronDown, Sparkles, Loader2, FileText } from 'lucide-react'
+import { Trash2, MoreVertical, ExternalLink, AlertCircle, CheckCircle2, XCircle, Link as LinkIcon, MessageCircle, ChevronDown, Sparkles, Loader2, FileText, TrendingUp } from 'lucide-react'
 import { FloatingCandidateChat } from '@/components/floating-candidate-chat'
 import { Progress } from '@/components/ui/progress'
 import { PDFViewer } from '@/components/pdf-viewer'
@@ -348,53 +349,66 @@ export default function CandidateDetailPage() {
         "space-y-6 transition-all duration-300",
         pdfViewerOpen && "mr-0 sm:mr-[25%] md:mr-[33%] lg:mr-[50%] xl:mr-[40%]"
       )}>
-      <div className="space-y-4">
-        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="space-y-4"
+      >
+        <Button variant="ghost" onClick={() => router.back()} className="mb-4 gap-2">
           <span aria-hidden>←</span> Back
         </Button>
 
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-bold mb-2">
-                {candidate.name || candidate.cv_filename}
-              </h1>
-              <Badge variant="outline">{candidate.status}</Badge>
+        <div className="relative">
+          <div className="absolute -top-6 -left-6 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl" />
+          <div className="relative flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                  {(candidate.name || candidate.cv_filename)?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold">
+                    {candidate.name || candidate.cv_filename}
+                  </h1>
+                  {candidate.email && (
+                    <p className="text-muted-foreground text-sm mt-1">{candidate.email}</p>
+                  )}
+                </div>
+                <Badge variant="outline" className="bg-muted/50">{candidate.status}</Badge>
+              </div>
             </div>
-            {candidate.email && (
-              <p className="text-muted-foreground text-sm">{candidate.email}</p>
-            )}
-          </div>
 
-          <div className="flex items-center gap-2">
-            {isParsed && !hasEvaluation && (
+            <div className="flex items-center gap-2">
+              {isParsed && !hasEvaluation && (
+                <Button
+                  onClick={() => evaluateMutation.mutate()}
+                  disabled={evaluateMutation.isPending}
+                  size="sm"
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 shadow-lg shadow-purple-500/25"
+                >
+                  {evaluateMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Evaluating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Evaluate Candidate
+                    </>
+                  )}
+                </Button>
+              )}
               <Button
-                onClick={() => evaluateMutation.mutate()}
-                disabled={evaluateMutation.isPending}
+                onClick={() => setPdfViewerOpen(true)}
+                variant="outline"
                 size="sm"
-                className="bg-primary hover:bg-primary/90"
+                className="border-2"
               >
-                {evaluateMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Evaluating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Evaluate Candidate
-                  </>
-                )}
+                <FileText className="mr-2 h-4 w-4" />
+                View Resume
               </Button>
-            )}
-            <Button
-              onClick={() => setPdfViewerOpen(true)}
-              variant="outline"
-              size="sm"
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              View Resume
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
@@ -414,15 +428,31 @@ export default function CandidateDetailPage() {
             </DropdownMenu>
           </div>
         </div>
-      </div>
+        </div>
+      </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile</CardTitle>
-              <CardDescription>AI-parsed CV information</CardDescription>
-            </CardHeader>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
+            <Card className="border-2 hover:border-purple-500/30 transition-all overflow-hidden relative">
+              {/* Gradient accent */}
+              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 rounded-bl-full" />
+              
+              <CardHeader className="relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <FileText className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle>Profile</CardTitle>
+                    <CardDescription>AI-parsed CV information</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
             <CardContent>
             {candidate.profile ? (
               <div className="space-y-4">
@@ -456,45 +486,70 @@ export default function CandidateDetailPage() {
             ) : (
               <div className="text-muted-foreground">Profile parsing in progress...</div>
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          </motion.div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Evaluation</CardTitle>
-            <CardDescription>AI-powered candidate assessment</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!evaluation ? (
-              <div className="space-y-4">
-                <p className="text-muted-foreground">
-                  No evaluation yet. Click below to evaluate this candidate.
-                </p>
-                <Button
-                  onClick={() => evaluateMutation.mutate()}
-                  disabled={evaluateMutation.isPending || !candidate.profile}
-                >
-                  {evaluateMutation.isPending ? 'Evaluating...' : 'Evaluate Candidate'}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={
-                      evaluation.decision === 'yes'
-                        ? 'default'
-                        : evaluation.decision === 'maybe'
-                        ? 'secondary'
-                        : 'destructive'
-                    }
-                  >
-                    {evaluation.decision.toUpperCase()}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {(evaluation.confidence * 100).toFixed(0)}% confidence
-                  </span>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <Card className="border-2 hover:border-purple-500/30 transition-all overflow-hidden relative">
+              {/* Gradient accent */}
+              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-purple-500/5 to-pink-500/5 rounded-bl-full" />
+              
+              <CardHeader className="relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                    <Sparkles className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle>Evaluation</CardTitle>
+                    <CardDescription>AI-powered candidate assessment</CardDescription>
+                  </div>
                 </div>
+              </CardHeader>
+              <CardContent className="relative z-10">
+                {!evaluation ? (
+                  <div className="space-y-4 text-center py-8">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                      <Sparkles className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-muted-foreground">
+                      No evaluation yet. Click below to evaluate this candidate.
+                    </p>
+                    <Button
+                      onClick={() => evaluateMutation.mutate()}
+                      disabled={evaluateMutation.isPending || !candidate.profile}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 shadow-lg shadow-purple-500/25"
+                    >
+                      {evaluateMutation.isPending ? 'Evaluating...' : 'Evaluate Candidate'}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <Badge
+                        variant={
+                          evaluation.decision === 'yes'
+                            ? 'default'
+                            : evaluation.decision === 'maybe'
+                            ? 'secondary'
+                            : 'destructive'
+                        }
+                        className={cn(
+                          evaluation.decision === 'yes' && "bg-gradient-to-r from-green-600 to-emerald-600 text-white border-0 shadow-lg shadow-green-500/25",
+                          evaluation.decision === 'maybe' && "bg-gradient-to-r from-amber-600 to-orange-600 text-white border-0",
+                          "text-sm px-3 py-1"
+                        )}
+                      >
+                        {evaluation.decision.toUpperCase()}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {(evaluation.confidence * 100).toFixed(0)}% confidence
+                      </span>
+                    </div>
 
                 <div>
                   <h3 className="font-semibold mb-2">Summary</h3>
@@ -558,10 +613,10 @@ export default function CandidateDetailPage() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
-
       </div>
 
       {/* Floating Chat */}
@@ -575,13 +630,28 @@ export default function CandidateDetailPage() {
       {evaluation && (
         <>
           {/* Quick Overview - 10 Second Evaluation */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Quick Overview</CardTitle>
-              <CardDescription>10-second evaluation summary</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-3 gap-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+          >
+            <Card className="mt-6 border-2 hover:border-purple-500/30 transition-all overflow-hidden relative">
+              {/* Gradient accent */}
+              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-purple-500/5 to-pink-500/5 rounded-bl-full" />
+              
+              <CardHeader className="relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                    <TrendingUp className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle>Quick Overview</CardTitle>
+                    <CardDescription>10-second evaluation summary</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="relative z-10">
+                <div className="grid md:grid-cols-3 gap-4">
                 <div className="text-center p-4 border rounded-lg bg-background">
                   <div className={cn(
                     "text-3xl font-bold mb-2",
@@ -622,8 +692,9 @@ export default function CandidateDetailPage() {
                   <div className="text-sm text-muted-foreground font-medium">Confidence</div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Enhanced Evaluation Sections */}
           {evaluation.jd_requirements_analysis && (

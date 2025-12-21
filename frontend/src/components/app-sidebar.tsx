@@ -23,32 +23,43 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import { Sparkles } from "lucide-react"
 
 const navigation = [
   {
     name: "Dashboard",
-    href: "/",
+    href: "/dashboard",
     icon: LayoutDashboard,
+    gradient: "from-purple-500 to-pink-500",
+    activeBg: "bg-purple-500"
   },
   {
     name: "Jobs",
     href: "/jobs",
     icon: Briefcase,
+    gradient: "from-blue-500 to-cyan-500",
+    activeBg: "bg-blue-500"
   },
   {
     name: "Create Job",
     href: "/jobs/new",
     icon: PlusCircle,
+    gradient: "from-green-500 to-emerald-500",
+    activeBg: "bg-green-500"
   },
   {
     name: "Candidates",
     href: "/candidates",
     icon: Users,
+    gradient: "from-amber-500 to-orange-500",
+    activeBg: "bg-amber-500"
   },
   {
     name: "Settings",
     href: "/settings",
     icon: Settings,
+    gradient: "from-slate-500 to-zinc-500",
+    activeBg: "bg-slate-500"
   },
 ]
 
@@ -62,10 +73,10 @@ function SidebarHeaderContent() {
       isCollapsed ? "justify-center px-2" : "px-2"
     )}>
       <div className={cn(
-        "flex items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0",
+        "flex items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 text-white shrink-0 shadow-lg shadow-purple-500/30",
         isCollapsed ? "h-10 w-10" : "h-10 w-10"
       )}>
-        <Briefcase className="h-5 w-5" />
+        <Sparkles className="h-5 w-5" />
       </div>
       {!isCollapsed && (
         <div className="flex flex-col min-w-0">
@@ -83,18 +94,37 @@ export function AppSidebar() {
   const isCollapsed = state === "collapsed"
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
+    <Sidebar collapsible="icon" className="border-r border-border">
+      <SidebarHeader className="border-b border-sidebar-border bg-sidebar-background/50 backdrop-blur-xl">
         <SidebarHeaderContent />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          {!isCollapsed && <SidebarGroupLabel>Navigation</SidebarGroupLabel>}
+          {!isCollapsed && (
+            <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Navigation
+            </SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map((item) => {
-                const isActive = pathname === item.href || 
-                  (item.href !== "/" && pathname?.startsWith(item.href))
+                // Check if there's a more specific route that matches exactly
+                const hasExactMatch = navigation.some(otherItem => 
+                  otherItem.href !== item.href && 
+                  pathname === otherItem.href
+                )
+                
+                // Exact match - highest priority
+                const isExactMatch = pathname === item.href
+                
+                // For parent routes, only match if it's a child route (not a sibling route)
+                // e.g., /jobs should match /jobs/123 but not /jobs/new
+                const isParentRoute = !hasExactMatch && 
+                  item.href !== "/" && 
+                  pathname?.startsWith(item.href + "/")
+                
+                const isActive = isExactMatch || isParentRoute
+                
                 return (
                   <SidebarMenuItem key={item.name}>
                     <SidebarMenuButton 
@@ -103,15 +133,36 @@ export function AppSidebar() {
                       tooltip={isCollapsed ? item.name : undefined}
                       size="default"
                       className={cn(
-                        isActive && "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                        "relative group",
+                        "hover:bg-transparent",
+                        isActive && "!bg-transparent !font-normal"
                       )}
                     >
                       <Link href={item.href}>
-                        <item.icon className="h-5 w-5 shrink-0" />
-                        <span className={cn(
-                          "text-base font-medium",
-                          isCollapsed && "hidden"
-                        )}>{item.name}</span>
+                        <div className={cn(
+                          "flex items-center gap-3 w-full",
+                          isCollapsed && "justify-center"
+                        )}>
+                          <div className={cn(
+                            "flex items-center justify-center shrink-0 rounded-lg transition-all h-9 w-9",
+                            isActive 
+                              ? `${item.activeBg} text-white`
+                              : "text-muted-foreground group-hover:text-foreground"
+                          )}>
+                            <item.icon className={cn(
+                              "h-5 w-5 transition-colors",
+                              isActive && "text-white"
+                            )} />
+                          </div>
+                          {!isCollapsed && (
+                            <span className={cn(
+                              "text-sm font-medium transition-colors",
+                              "text-sidebar-foreground"
+                            )}>
+                              {item.name}
+                            </span>
+                          )}
+                        </div>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

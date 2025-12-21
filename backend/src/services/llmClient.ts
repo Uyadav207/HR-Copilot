@@ -454,4 +454,190 @@ Format the response as a complete, professional job description that can be used
       return response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
     }
   }
+
+  async *generateJobDescriptionStream(
+    message: string,
+    conversationHistory: Array<{ role: string; content: string }> = [],
+    jobTitle?: string
+  ): AsyncGenerator<{ type: 'title' | 'description'; content: string }, void, unknown> {
+    let systemPrompt = `You are an expert HR assistant helping to create professional job descriptions. 
+Generate comprehensive, well-structured job descriptions based on the user's requirements.
+
+IMPORTANT: You must respond in JSON format with two fields:
+1. "title": A professional job title based on the user's requirements. If the user provides instructions about the title in the job title field, use those instructions to generate an appropriate title.
+2. "description": A complete, professional job description in MDX (Markdown) format that includes:
+   - Clear overview
+   - Key responsibilities (use bullet points with - or *)
+   - Required qualifications and skills (use bullet points)
+   - Preferred experience (use bullet points)
+   - Company culture and benefits (if mentioned, use bullet points)
+   - Any other relevant details
+
+Use MDX/Markdown formatting:
+- Use ## for section headings (e.g., ## Overview, ## Responsibilities, ## Requirements)
+- Use - or * for bullet points
+- Use **bold** for emphasis
+- Use proper line breaks between sections
+- Keep it well-structured and easy to edit
+
+Format your response as valid JSON: {"title": "...", "description": "..."}`;
+
+    if (jobTitle && jobTitle.trim()) {
+      systemPrompt += `\n\nThe user has provided the following job title or instructions: "${jobTitle}". Use this to inform the title generation. If it's instructions, generate an appropriate title based on those instructions. If it's already a title, you may refine it or use it as-is if appropriate.`;
+    }
+
+    const messages: Array<{ role: string; content: string }> = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    // Add conversation history
+    if (conversationHistory.length > 0) {
+      messages.push(...conversationHistory);
+    }
+
+    // Add current message
+    messages.push({ role: "user", content: message });
+
+    // Call LLM based on provider with streaming
+    if (this.provider === "openai") {
+      const client = this.client as OpenAI;
+      const stream = await client.chat.completions.create({
+        model: this.model,
+        messages: messages as any,
+        temperature: 0.7,
+        stream: true,
+      });
+
+      let fullContent = "";
+      let lastTitle = "";
+      let lastDescription = "";
+      
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+          fullContent += content;
+          
+          // Try to parse JSON as it streams
+          try {
+            // Look for complete JSON object
+            const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (parsed.title && parsed.title !== lastTitle) {
+                  lastTitle = parsed.title;
+                  yield { type: 'title' as const, content: parsed.title };
+                }
+                if (parsed.description && parsed.description !== lastDescription) {
+                  lastDescription = parsed.description;
+                  yield { type: 'description' as const, content: parsed.description };
+                }
+              } catch {
+                // JSON might not be complete yet
+              }
+            }
+          } catch {
+            // Not complete JSON yet, continue streaming
+          }
+        }
+      }
+
+      // Final parse attempt
+      try {
+        const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.title && parsed.title !== lastTitle) {
+            yield { type: 'title' as const, content: parsed.title };
+          }
+          if (parsed.description && parsed.description !== lastDescription) {
+            yield { type: 'description' as const, content: parsed.description };
+          }
+        } else {
+          // Fallback: treat entire response as description
+          if (fullContent.trim() && fullContent.trim() !== lastDescription) {
+            yield { type: 'description' as const, content: fullContent.trim() };
+          }
+        }
+      } catch {
+        // Fallback: treat entire response as description
+        if (fullContent.trim() && fullContent.trim() !== lastDescription) {
+          yield { type: 'description' as const, content: fullContent.trim() };
+        }
+      }
+    } else {
+      // Anthropic streaming
+      const client = this.client as Anthropic;
+      const stream = await client.messages.stream({
+        model: this.model,
+        max_tokens: 4096,
+        messages: messages
+          .filter((msg) => msg.role !== "system")
+          .map((msg) => ({
+            role: msg.role as "user" | "assistant",
+            content: msg.content,
+          })),
+        system: systemPrompt,
+        temperature: 0.7,
+      });
+
+      let fullContent = "";
+      let lastTitle = "";
+      let lastDescription = "";
+      
+      for await (const chunk of stream) {
+        if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+          const content = chunk.delta.text || "";
+          if (content) {
+            fullContent += content;
+            // Try to parse JSON as it streams
+            try {
+              const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                try {
+                  const parsed = JSON.parse(jsonMatch[0]);
+                  if (parsed.title && parsed.title !== lastTitle) {
+                    lastTitle = parsed.title;
+                    yield { type: 'title' as const, content: parsed.title };
+                  }
+                  if (parsed.description && parsed.description !== lastDescription) {
+                    lastDescription = parsed.description;
+                    yield { type: 'description' as const, content: parsed.description };
+                  }
+                } catch {
+                  // JSON might not be complete yet
+                }
+              }
+            } catch {
+              // Not complete JSON yet, continue streaming
+            }
+          }
+        }
+      }
+
+      // Final parse attempt
+      try {
+        const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.title && parsed.title !== lastTitle) {
+            yield { type: 'title' as const, content: parsed.title };
+          }
+          if (parsed.description && parsed.description !== lastDescription) {
+            yield { type: 'description' as const, content: parsed.description };
+          }
+        } else {
+          // Fallback: treat entire response as description
+          if (fullContent.trim() && fullContent.trim() !== lastDescription) {
+            yield { type: 'description' as const, content: fullContent.trim() };
+          }
+        }
+      } catch {
+        // Fallback: treat entire response as description
+        if (fullContent.trim() && fullContent.trim() !== lastDescription) {
+          yield { type: 'description' as const, content: fullContent.trim() };
+        }
+      }
+    }
+  }
 }

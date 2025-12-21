@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { apiRequest } from '@/lib/api'
 import { Job, Candidate } from '@/types'
@@ -292,43 +293,50 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="space-y-4">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="space-y-4"
+      >
         <Link href="/jobs">
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="ghost" size="sm" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back to Jobs
           </Button>
         </Link>
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight">{job.title}</h1>
-              {job.blueprint ? (
-                <Badge className="bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600 dark:text-gray-900">
-                  <CheckCircle2 className="mr-1 h-3 w-3" />
-                  Ready
-                </Badge>
-              ) : (
-                <Badge variant="secondary">
-                  <Clock className="mr-1 h-3 w-3" />
-                  Processing
-                </Badge>
-              )}
+        <div className="relative">
+          <div className="absolute -top-6 -left-6 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl" />
+          <div className="relative flex items-start justify-between gap-4 flex-wrap">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{job.title}</h1>
+                {job.blueprint ? (
+                  <Badge className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg shadow-green-500/25">
+                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                    Ready
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
+                    <Clock className="mr-1.5 h-3.5 w-3.5" />
+                    Processing
+                  </Badge>
+                )}
+              </div>
+              <p className="text-muted-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Created {format(new Date(job.created_at), 'MMM d, yyyy')}
+              </p>
             </div>
-            <p className="text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Created {format(new Date(job.created_at), 'MMM d, yyyy')}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href={`/jobs/${jobId}/candidates/upload`}>
-              <Button variant="default" size="lg">
-                <Upload className="mr-2 h-4 w-4" />
-                Upload CVs
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href={`/jobs/${jobId}/candidates/upload`}>
+                <Button size="lg" className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 shadow-lg shadow-purple-500/25">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload CVs
+                </Button>
+              </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="lg" className="h-10 w-10 p-0">
@@ -353,45 +361,63 @@ export default function JobDetailPage() {
             </DropdownMenu>
           </div>
         </div>
-      </div>
+        </div>
+      </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Job Blueprint - Takes 2 columns */}
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <CardTitle className="text-xl">Job Blueprint</CardTitle>
-              </div>
-              <CardDescription>AI-parsed job requirements and evaluation criteria</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {job.blueprint ? (
-                <div className="space-y-6">
-                  {job.blueprint.required_skills && job.blueprint.required_skills.length > 0 && (
-                    <div>
-                      <h3 className="font-semibold mb-3 text-sm uppercase tracking-wide text-muted-foreground">
-                        Required Skills
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {job.blueprint.required_skills.map((skill, idx) => (
-                          <Badge
-                            key={idx}
-                            variant={skill.priority === 'must_have' ? 'default' : 'secondary'}
-                            className="text-sm py-1.5 px-3 border border-white/10 bg-white/[0.04] hover:bg-white/[0.06]"
-                          >
-                            {skill.skill}
-                            {skill.years_preferred && (
-                              <span className="ml-1.5 opacity-75">
-                                ({skill.years_preferred}+ yrs)
-                              </span>
-                            )}
-                          </Badge>
-                        ))}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
+            <Card className="border-2 hover:border-purple-500/30 transition-all overflow-hidden relative">
+              {/* Gradient accent */}
+              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-purple-500/5 to-pink-500/5 rounded-bl-full" />
+              
+              <CardHeader className="relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                    <Sparkles className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Job Blueprint</CardTitle>
+                    <CardDescription>AI-parsed job requirements and evaluation criteria</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="relative z-10">
+                {job.blueprint ? (
+                  <div className="space-y-6">
+                    {job.blueprint.required_skills && job.blueprint.required_skills.length > 0 && (
+                      <div>
+                        <h3 className="font-semibold mb-3 text-sm uppercase tracking-wide text-muted-foreground">
+                          Required Skills
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {job.blueprint.required_skills.map((skill, idx) => (
+                            <Badge
+                              key={idx}
+                              variant={skill.priority === 'must_have' ? 'default' : 'secondary'}
+                              className={cn(
+                                "text-sm py-1.5 px-3 border transition-all",
+                                skill.priority === 'must_have' 
+                                  ? "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-lg shadow-purple-500/25"
+                                  : "border-border bg-card hover:bg-accent hover:border-purple-500/30"
+                              )}
+                            >
+                              {skill.skill}
+                              {skill.years_preferred && (
+                                <span className={cn("ml-1.5", skill.priority === 'must_have' ? 'opacity-90' : 'opacity-75')}>
+                                  ({skill.years_preferred}+ yrs)
+                                </span>
+                              )}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {job.blueprint.experience_range && (
                     <>
@@ -449,36 +475,51 @@ export default function JobDetailPage() {
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
-                    <Sparkles className="h-6 w-6 text-muted-foreground animate-pulse" />
+                <div className="flex flex-col items-center justify-center py-16">
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-2xl animate-pulse" />
+                    <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-xl">
+                      <Sparkles className="h-8 w-8 text-white animate-pulse" />
+                    </div>
                   </div>
-                  <p className="text-muted-foreground mb-2">Blueprint parsing in progress...</p>
+                  <p className="text-muted-foreground mb-2 font-medium">Blueprint parsing in progress...</p>
                   <p className="text-xs text-muted-foreground">
                     This usually takes a few moments
                   </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
 
         {/* Candidates Sidebar */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="space-y-6"
+        >
+          <Card className="border-2 hover:border-purple-500/30 transition-all overflow-hidden relative">
+            <CardHeader className="relative z-10">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  <CardTitle>Candidates</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <Users className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle>Candidates</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">
+                      Manage applications and evaluations
+                    </CardDescription>
+                  </div>
                 </div>
                 {candidates && candidates.length > 0 && (
-                  <Badge variant="secondary">{candidates.length}</Badge>
+                  <Badge variant="secondary" className="bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20">
+                    {candidates.length}
+                  </Badge>
                 )}
               </div>
-              <CardDescription>
-                Manage candidate applications and evaluations
-              </CardDescription>
             </CardHeader>
             <CardContent>
               {candidatesLoading ? (
@@ -503,16 +544,19 @@ export default function JobDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {candidates.map((candidate) => {
+                  {candidates.map((candidate, idx) => {
                     const isParsed = candidate.profile !== null
                     const candidateCard = (
                       <Card className={cn(
-                        "transition-colors border-2",
+                        "transition-all duration-300 border-2 relative overflow-hidden",
                         isParsed 
-                          ? "hover:bg-accent cursor-pointer hover:border-primary/50" 
+                          ? "hover:bg-accent/50 cursor-pointer hover:border-purple-500/50 hover:shadow-md" 
                           : "opacity-60 cursor-not-allowed"
                       )}>
-                        <CardContent className="py-3">
+                        {isParsed && (
+                          <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-purple-500/5 to-pink-500/5 rounded-bl-full" />
+                        )}
+                        <CardContent className="py-3 relative z-10">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-sm truncate">
@@ -524,7 +568,8 @@ export default function JobDetailPage() {
                                 </p>
                               )}
                               {!isParsed && (
-                                <p className="text-xs text-muted-foreground mt-1 italic">
+                                <p className="text-xs text-muted-foreground mt-1 italic flex items-center gap-1">
+                                  <Clock className="h-3 w-3 animate-pulse" />
                                   CV parsing in progress...
                                 </p>
                               )}
@@ -538,7 +583,11 @@ export default function JobDetailPage() {
                                     ? 'default'
                                     : 'outline'
                                 }
-                                className="shrink-0 text-xs"
+                                className={cn(
+                                  "shrink-0 text-xs",
+                                  candidate.status === 'evaluated' && "bg-gradient-to-r from-green-600 to-emerald-600 text-white border-0",
+                                  candidate.status === 'invited' && "bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0"
+                                )}
                               >
                                 {candidate.status}
                               </Badge>
@@ -608,8 +657,8 @@ export default function JobDetailPage() {
               )}
             </CardContent>
           </Card>
+          </motion.div>
         </div>
-      </div>
 
       {/* Edit Job Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
