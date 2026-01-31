@@ -23,12 +23,16 @@ export interface ChatContext {
 }
 
 export class CandidateChatService {
-  private llmClient: LLMClient;
+  private _llmClient: LLMClient | null = null;
   private vectorStore: VectorStoreService | null;
 
   constructor() {
-    this.llmClient = new LLMClient();
     this.vectorStore = settings.pineconeApiKey ? new VectorStoreService() : null;
+  }
+
+  private get llmClient(): LLMClient {
+    if (!this._llmClient) this._llmClient = new LLMClient();
+    return this._llmClient;
   }
 
   /**
@@ -125,6 +129,19 @@ INSTRUCTIONS:
           max_tokens: 500,
         });
         return response.choices[0]?.message?.content || "I couldn't generate a response.";
+      } else if (provider === "gemini") {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: settings.geminiApiKey });
+        const userContent = messages
+          .filter((msg) => msg.role !== "system")
+          .map((m) => `${m.role}: ${m.content}`)
+          .join("\n\n");
+        const response = await ai.models.generateContent({
+          model: settings.geminiModel,
+          contents: userContent,
+          config: { systemInstruction: systemPrompt, temperature: 0.7 },
+        });
+        return (response.text ?? "I couldn't generate a response.").trim();
       } else {
         // Anthropic
         const { default: Anthropic } = await import("@anthropic-ai/sdk");

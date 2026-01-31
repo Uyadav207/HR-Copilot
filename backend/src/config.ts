@@ -10,11 +10,13 @@ export interface Settings {
   redisUrl: string;
   
   // LLM Configuration
-  llmProvider: "openai" | "anthropic";
+  llmProvider: "openai" | "anthropic" | "gemini";
   openaiApiKey: string;
   anthropicApiKey: string;
+  geminiApiKey: string;
   openaiModel: string;
   anthropicModel: string;
+  geminiModel: string;
   
   // Pinecone Configuration
   pineconeApiKey: string;
@@ -56,11 +58,13 @@ function parseCorsOrigins(originsStr: string): string[] {
 export const settings: Settings = {
   databaseUrl: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/hr_autopilot",
   redisUrl: process.env.REDIS_URL || "redis://localhost:6379/0",
-  llmProvider: (process.env.LLM_PROVIDER as "openai" | "anthropic") || "openai",
+  llmProvider: (process.env.LLM_PROVIDER as "openai" | "anthropic" | "gemini") || "gemini",
   openaiApiKey: process.env.OPENAI_API_KEY || "",
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
+  geminiApiKey: process.env.GEMINI_API_KEY || "",
   openaiModel: process.env.OPENAI_MODEL || "gpt-4-turbo-preview",
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-3-opus-20240229",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-2.0-flash",
   pineconeApiKey: process.env.PINECONE_API_KEY || "",
   pineconeIndexName: process.env.PINECONE_INDEX_NAME || "cv-chunks",
   pineconeEnvironment: process.env.PINECONE_ENVIRONMENT,

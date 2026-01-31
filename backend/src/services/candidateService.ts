@@ -141,6 +141,11 @@ export class CandidateService {
         console.error(`❌ [Background] ${error}`);
         await this.createAuditLog(candidateId, "cv_parse_failed", { error });
         throw new Error(error);
+      } else if (settings.llmProvider === "gemini" && !settings.geminiApiKey) {
+        const error = "GEMINI_API_KEY not configured in .env file";
+        console.error(`❌ [Background] ${error}`);
+        await this.createAuditLog(candidateId, "cv_parse_failed", { error });
+        throw new Error(error);
       }
 
       console.log(`🔄 [Background] API keys configured, starting RAG pipeline...`);

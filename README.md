@@ -1,61 +1,273 @@
-## HR Autopilot
+# HR Autopilot
 
-**AI-first hiring co-pilot for early-stage teams.**  
-Turn messy JDs and CVs into a transparent, auditable pipeline in minutes.
+**AI-Powered Candidate Evaluation & Hiring Pipeline**
 
-### What it does
+A modern, full-stack application that automates the candidate screening process using AI. Upload resumes, parse job descriptions, and get detailed AI-powered evaluations with match scores, gap analysis, and interview recommendations.
 
-- **AI JD → Structure**: Paste a job description and get a structured blueprint (skills, seniority, must-haves).
-- **Batch CV ingestion**: Drag-and-drop resumes; they’re parsed, normalized, and linked to jobs.
-- **Evidence-based evaluations**: One-click AI evaluations with **Yes / Maybe / No** plus concrete CV snippets.
-- **Email automation**: Generate tailored invite / hold / reject email drafts from the evaluation context.
-- **Audit trail**: Every important action (parse, evaluate, decide, email) is logged for accountability.
+---
 
-### Tech stack (modern, production-ready)
+## Table of Contents
 
-- **Frontend**: Next.js 14 (App Router), TypeScript, TailwindCSS, shadcn/ui, Radix UI, TanStack Query.
-- **Backend**: Bun, Hono, TypeScript, PostgreSQL + Drizzle ORM, Zod, Nodemailer.
-- **AI**: OpenAI / Anthropic via a pluggable LLM client and prompt registry.
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [API Reference](#api-reference)
+- [Project Structure](#project-structure)
 
-### Architecture at a glance
+---
 
-- **Domain-driven API**: Jobs, Candidates, Evaluations, Audit Logs exposed via a clean `/api` surface.
-- **LLM pipeline**: Prompt templates in `backend/src/prompts` power JD parsing, CV → profile, and profile → evaluation.
-- **Typed contracts**: Shared TypeScript types + Zod schemas between routes and services for safe refactors.
-- **UX focus**: Sidebar-based app layout with quick actions, skeleton states, and contextual navigation across jobs and candidates.
+## Features
 
-### Run it locally (2–3 minutes)
+| Feature | Description |
+|---------|-------------|
+| **Job Blueprint Generation** | AI parses job descriptions into structured blueprints with must-have/nice-to-have requirements |
+| **CV Parsing** | Automatic extraction of skills, experience, education from PDF resumes |
+| **AI Evaluation** | Deep candidate-to-job matching with confidence scores and evidence-based reasoning |
+| **Gap Analysis** | Critical, major, and moderate gaps identified with transferability assessment |
+| **Email Generation** | Auto-generated invite/reject/hold emails based on evaluation |
+| **Candidate Chat** | AI-powered Q&A about specific candidates |
+| **Multi-tenant** | Organization-based data isolation with JWT authentication |
 
-**Prerequisites**
-- Node.js 18+, Bun, Docker Desktop
-- PostgreSQL/Redis via Docker (already configured)
-- OpenAI or Anthropic API key
+---
 
-**1. Setup**
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│                 │     │                 │     │                 │
+│    Frontend     │────▶│    Backend      │────▶│   PostgreSQL    │
+│   (Next.js)     │     │   (Hono/Bun)    │     │                 │
+│   Port: 3000    │     │   Port: 8000    │     │   Port: 5432    │
+│                 │     │                 │     │                 │
+└─────────────────┘     └────────┬────────┘     └─────────────────┘
+                                 │
+                                 │
+                    ┌────────────┼────────────┐
+                    │            │            │
+                    ▼            ▼            ▼
+             ┌──────────┐ ┌──────────┐ ┌──────────┐
+             │  Redis   │ │   LLM    │ │  Email   │
+             │  Cache   │ │ Provider │ │  (SMTP)  │
+             └──────────┘ └──────────┘ └──────────┘
+```
+
+### Data Flow
+
+1. **Job Creation**: JD text → LLM → Structured Blueprint (skills, experience, responsibilities)
+2. **CV Upload**: PDF → Parser → LLM → Candidate Profile (skills, experience, education)
+3. **Evaluation**: Blueprint + Profile + CV Text → LLM → Detailed Evaluation with scores
+4. **Decision**: HR reviews evaluation → Makes decision → Auto-generates appropriate email
+
+---
+
+## Tech Stack
+
+### Backend
+| Technology | Purpose |
+|------------|---------|
+| **Bun** | JavaScript runtime (fast, TypeScript-native) |
+| **Hono** | Lightweight web framework |
+| **Drizzle ORM** | Type-safe database queries |
+| **PostgreSQL** | Primary database |
+| **Redis** | Caching layer |
+
+### Frontend
+| Technology | Purpose |
+|------------|---------|
+| **Next.js 14** | React framework with App Router |
+| **TailwindCSS** | Utility-first styling |
+| **shadcn/ui** | Component library |
+| **TanStack Query** | Data fetching & caching |
+
+### AI/LLM
+| Provider | Models Supported |
+|----------|------------------|
+| **Gemini** | gemini-2.0-flash (default) |
+| **OpenAI** | gpt-4o, gpt-4-turbo |
+| **Anthropic** | claude-3-5-sonnet |
+
+---
+
+## Quick Start
+
+### Using Docker (Recommended)
 
 ```bash
-./setup-env.sh               # scaffold env files
-docker-compose up -d         # start Postgres (and supporting services)
+# 1. Clone and enter directory
+cd HR
+
+# 2. Create backend environment file
+cat > backend/.env << 'EOF'
+GEMINI_API_KEY=your_gemini_api_key
+LLM_PROVIDER=gemini
+JWT_SECRET=your-secret-key-min-32-chars-long
+EOF
+
+# 3. Start all services
+docker compose up --build
+
+# 4. Access the application
+# Frontend: http://localhost:3000
+# Backend:  http://localhost:8000
 ```
 
-**2. Start services**
+### Local Development
 
 ```bash
-./start-backend.sh           # Bun + Hono API on http://localhost:8000
-./start-frontend.sh          # Next.js app on http://localhost:3000
+# Backend
+cd backend
+bun install
+bun run db:push    # Initialize database schema
+bun run dev        # Start dev server on :8000
+
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev        # Start dev server on :3000
 ```
 
-### Repo layout
+---
 
-```txt
-backend/     Bun + Hono API, Drizzle models, LLM services, audit logging
-frontend/    Next.js 14 app, UI, routing, API client hooks
-docker-compose.yml
-start-*.sh   Helper scripts to run the full stack locally
+## Configuration
+
+### Environment Variables
+
+Create `backend/.env`:
+
+```env
+# Required - Choose one LLM provider
+LLM_PROVIDER=gemini              # Options: gemini, openai, anthropic
+GEMINI_API_KEY=your_key          # If using Gemini
+OPENAI_API_KEY=your_key          # If using OpenAI
+ANTHROPIC_API_KEY=your_key       # If using Anthropic
+
+# Authentication
+JWT_SECRET=your-32-char-secret   # Required for auth
+
+# Database (auto-configured in Docker)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hr_autopilot
+
+# Optional
+REDIS_URL=redis://localhost:6379/0
+SMTP_HOST=smtp.gmail.com         # For sending emails
+SMTP_PORT=587
+SMTP_USER=your_email
+SMTP_PASS=your_app_password
 ```
 
-If you’re reviewing this as a recruiter/engineer and want a quick tour, start with:
-- `frontend/src/app/page.tsx` (dashboard + UX)
-- `backend/src/routes` and `backend/src/services` (API design and business logic)
+---
 
+## API Reference
 
+### Authentication
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/signup` | POST | Create new user account |
+| `/api/auth/login` | POST | Get JWT token |
+| `/api/auth/me` | GET | Get current user |
+
+### Jobs
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/jobs` | GET | List all jobs |
+| `/api/jobs` | POST | Create job (with JD parsing) |
+| `/api/jobs/:id` | GET | Get job details |
+| `/api/jobs/:id` | DELETE | Delete job |
+
+### Candidates
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/jobs/:id/candidates` | GET | List candidates for job |
+| `/api/jobs/:id/candidates` | POST | Upload CV (multipart/form-data) |
+| `/api/candidates/:id` | GET | Get candidate details |
+| `/api/candidates/:id/evaluate` | POST | Trigger AI evaluation |
+| `/api/candidates/:id/evaluation` | GET | Get evaluation results |
+| `/api/candidates/:id/chat` | POST | Chat about candidate |
+
+### Evaluations
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/evaluations/:id/decision` | PATCH | Set final decision |
+| `/api/evaluations/:id/email-draft` | POST | Generate email |
+| `/api/evaluations/:id/send-email` | POST | Send email to candidate |
+
+---
+
+## Project Structure
+
+```
+HR/
+├── backend/
+│   ├── src/
+│   │   ├── index.ts           # App entry point
+│   │   ├── config.ts          # Environment configuration
+│   │   ├── database.ts        # Drizzle DB connection
+│   │   ├── models/            # Database schemas (Drizzle)
+│   │   ├── routes/            # API route handlers
+│   │   ├── services/          # Business logic
+│   │   │   ├── llmClient.ts       # LLM integration
+│   │   │   ├── evaluationService.ts
+│   │   │   ├── candidateService.ts
+│   │   │   └── jobService.ts
+│   │   ├── prompts/           # LLM prompt templates
+│   │   │   └── v1/            # Versioned prompts
+│   │   └── middleware/        # Auth middleware
+│   └── package.json
+│
+├── frontend/
+│   ├── src/
+│   │   ├── app/               # Next.js App Router pages
+│   │   │   ├── jobs/          # Job management
+│   │   │   ├── candidates/    # Candidate views
+│   │   │   └── settings/      # App settings
+│   │   ├── components/        # React components
+│   │   │   ├── ui/            # shadcn components
+│   │   │   └── *.tsx          # Feature components
+│   │   ├── lib/               # Utilities
+│   │   └── types/             # TypeScript types
+│   └── package.json
+│
+├── docker-compose.yml         # Container orchestration
+└── README.md
+```
+
+---
+
+## Evaluation Output Structure
+
+The AI evaluation produces a comprehensive assessment:
+
+```typescript
+{
+  decision: "yes" | "maybe" | "no",
+  confidence: 0.85,
+  overall_match_score: 0.72,
+  
+  // Detailed Analysis
+  jd_requirements_analysis: { must_have: [...], nice_to_have: [...] },
+  skills_comparison: [{ skill, jd_requirement, candidate_level, matches, evidence }],
+  experience_analysis: { jd_requirement, candidate_years, matches, gap_analysis },
+  
+  // Gap Analysis
+  matching_strengths: { skills_that_match: [...], experience_that_matches: [...] },
+  missing_gaps: { technology_gaps, experience_gaps, skill_gaps },
+  brutal_gap_analysis: { critical_gaps, major_gaps, moderate_gaps },
+  
+  // Recommendations
+  strengths: [{ point, evidence }],
+  concerns: [{ point, evidence }],
+  recommended_interview_questions: [...]
+}
+```
+
+---
+
+## License
+
+MIT
+
+---
+
+**Built with AI, for HR teams who value their time.**

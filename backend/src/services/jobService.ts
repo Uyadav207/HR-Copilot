@@ -35,6 +35,10 @@ export class JobService {
       const errorMsg = "ANTHROPIC_API_KEY not configured in .env file";
       console.log(`❌ ${errorMsg}`);
       return job;
+    } else if (settings.llmProvider === "gemini" && !settings.geminiApiKey) {
+      const errorMsg = "GEMINI_API_KEY not configured in .env file";
+      console.log(`❌ ${errorMsg}`);
+      return job;
     }
 
     try {
@@ -87,6 +91,8 @@ export class JobService {
           console.log(`❌ OPENAI_API_KEY not configured`);
         } else if (settings.llmProvider === "anthropic" && !settings.anthropicApiKey) {
           console.log(`❌ ANTHROPIC_API_KEY not configured`);
+        } else if (settings.llmProvider === "gemini" && !settings.geminiApiKey) {
+          console.log(`❌ GEMINI_API_KEY not configured`);
         } else {
           try {
             const llmClient = new LLMClient();
@@ -124,6 +130,8 @@ export class JobService {
       throw new Error("OPENAI_API_KEY not configured in .env file");
     } else if (settings.llmProvider === "anthropic" && !settings.anthropicApiKey) {
       throw new Error("ANTHROPIC_API_KEY not configured in .env file");
+    } else if (settings.llmProvider === "gemini" && !settings.geminiApiKey) {
+      throw new Error("GEMINI_API_KEY not configured in .env file");
     }
 
     try {

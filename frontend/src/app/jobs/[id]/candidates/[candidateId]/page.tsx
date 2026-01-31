@@ -2,7 +2,6 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
 import { apiRequest } from '@/lib/api'
 import { Candidate, Evaluation, EmailDraft, AuditLog } from '@/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,13 +16,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { format } from 'date-fns'
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useToast } from '@/hooks/use-toast'
-import { Trash2, MoreVertical, ExternalLink, AlertCircle, CheckCircle2, XCircle, Link as LinkIcon, MessageCircle, ChevronDown, Sparkles, Loader2, FileText, TrendingUp } from 'lucide-react'
+import { Trash2, MoreVertical, ExternalLink, AlertCircle, CheckCircle2, XCircle, Link as LinkIcon, MessageCircle, ChevronDown, Loader2, Brain, FileSearch, ClipboardCheck, Sparkles } from 'lucide-react'
 import { FloatingCandidateChat } from '@/components/floating-candidate-chat'
 import { Progress } from '@/components/ui/progress'
-import { PDFViewer } from '@/components/pdf-viewer'
-import { useSidebar } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
@@ -121,17 +118,130 @@ function CollapsiblePanel({
   )
 }
 
-// Helper function to normalize URLs with proper https://
-function normalizeUrl(url: string): string {
-  if (!url) return ''
-  // Remove any whitespace
-  url = url.trim()
-  // If it already has http:// or https://, return as is
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
+const EVALUATION_MESSAGES = [
+  { icon: FileSearch, text: "Parsing resume content...", subtext: "Extracting skills and experience" },
+  { icon: Brain, text: "Analyzing candidate profile...", subtext: "Understanding career trajectory" },
+  { icon: ClipboardCheck, text: "Comparing with job requirements...", subtext: "Matching skills to JD criteria" },
+  { icon: Sparkles, text: "Evaluating technical skills...", subtext: "Assessing proficiency levels" },
+  { icon: Brain, text: "Analyzing experience gaps...", subtext: "Identifying strengths and areas for growth" },
+  { icon: ClipboardCheck, text: "Generating detailed assessment...", subtext: "Creating comprehensive evaluation" },
+  { icon: Sparkles, text: "Calculating match scores...", subtext: "Quantifying candidate fit" },
+  { icon: FileSearch, text: "Preparing interview questions...", subtext: "Tailoring questions to candidate profile" },
+  { icon: Brain, text: "Finalizing evaluation report...", subtext: "Almost there!" },
+]
+
+function EvaluationLoadingState() {
+  const [messageIndex, setMessageIndex] = useState(0)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+
+  useEffect(() => {
+    // Rotate messages every 4 seconds
+    const messageInterval = setInterval(() => {
+      setMessageIndex((prev) => (prev + 1) % EVALUATION_MESSAGES.length)
+    }, 4000)
+
+    // Update elapsed time every second
+    const timeInterval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1)
+    }, 1000)
+
+    return () => {
+      clearInterval(messageInterval)
+      clearInterval(timeInterval)
+    }
+  }, [])
+
+  const currentMessage = EVALUATION_MESSAGES[messageIndex]
+  const IconComponent = currentMessage.icon
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
   }
-  // Otherwise, add https://
-  return `https://${url}`
+
+  return (
+    <div className="space-y-6">
+      {/* Main loading card */}
+      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-primary/5 via-background to-primary/10 p-8">
+        {/* Animated background effect */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent animate-pulse" />
+        
+        <div className="relative flex flex-col items-center text-center space-y-6">
+          {/* Animated icon */}
+          <div className="relative">
+            <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+            <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 border border-primary/20">
+              <IconComponent className="w-10 h-10 text-primary animate-pulse" />
+            </div>
+          </div>
+
+          {/* Loading spinner and message */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <h3 className="text-xl font-semibold">{currentMessage.text}</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">{currentMessage.subtext}</p>
+          </div>
+
+          {/* Progress indicator */}
+          <div className="w-full max-w-md space-y-2">
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
+                style={{ 
+                  width: `${Math.min(95, (messageIndex / EVALUATION_MESSAGES.length) * 100 + 10)}%` 
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>AI Evaluation in Progress</span>
+              <span>{formatTime(elapsedSeconds)}</span>
+            </div>
+          </div>
+
+          {/* Fun facts / tips while waiting */}
+          <div className="mt-4 p-4 rounded-lg bg-muted/50 max-w-lg">
+            <p className="text-sm text-muted-foreground">
+              {elapsedSeconds < 15 && "Our AI is thoroughly analyzing every detail of the candidate's profile..."}
+              {elapsedSeconds >= 15 && elapsedSeconds < 30 && "Deep analysis takes time - we're ensuring accuracy over speed..."}
+              {elapsedSeconds >= 30 && elapsedSeconds < 60 && "Comparing against job requirements with precision..."}
+              {elapsedSeconds >= 60 && elapsedSeconds < 90 && "Almost done! Generating comprehensive insights..."}
+              {elapsedSeconds >= 90 && "Finalizing the detailed evaluation report..."}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* What's happening behind the scenes */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: "Skills Matched", done: messageIndex >= 3 },
+          { label: "Experience Verified", done: messageIndex >= 5 },
+          { label: "Gaps Analyzed", done: messageIndex >= 6 },
+          { label: "Report Ready", done: messageIndex >= 8 },
+        ].map((step, idx) => (
+          <div 
+            key={idx}
+            className={cn(
+              "flex items-center gap-2 p-3 rounded-lg border transition-all duration-500",
+              step.done 
+                ? "bg-green-500/10 border-green-500/30 text-green-700" 
+                : "bg-muted/50 border-border text-muted-foreground"
+            )}
+          >
+            {step.done ? (
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+            )}
+            <span className="text-sm font-medium">{step.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function CandidateDetailPage() {
@@ -145,15 +255,6 @@ export default function CandidateDetailPage() {
   const [emailType, setEmailType] = useState<'invite' | 'reject' | 'hold' | null>(null)
   const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [pdfViewerOpen, setPdfViewerOpen] = useState(false)
-  const { setOpen: setSidebarOpen } = useSidebar()
-
-  // Collapse sidebar when PDF viewer opens
-  useEffect(() => {
-    if (pdfViewerOpen) {
-      setSidebarOpen(false)
-    }
-  }, [pdfViewerOpen, setSidebarOpen])
 
   const { data: candidate, isLoading } = useQuery({
     queryKey: ['candidate', candidateId],
@@ -182,13 +283,6 @@ export default function CandidateDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['evaluation', candidateId] })
       queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] })
       queryClient.invalidateQueries({ queryKey: ['timeline', candidateId] })
-      
-      // Show success toast
-      toast({
-        title: 'Evaluation Complete! ✅',
-        description: `Candidate has been evaluated. Decision: ${data.decision.toUpperCase()}`,
-        variant: 'success',
-      })
     },
     onError: (error) => {
       toast({
@@ -301,117 +395,30 @@ export default function CandidateDetailPage() {
     )
   }
 
-  // Check if candidate is parsed (has profile)
-  const isParsed = candidate.profile !== null
-  const hasEvaluation = evaluation !== null
-  
-  if (!isParsed) {
-    return (
-      <div className="space-y-6">
-        <div className="space-y-4">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-            <span aria-hidden>←</span> Back
-          </Button>
-        </div>
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex flex-col items-center justify-center text-center space-y-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30">
-                <AlertCircle className="h-8 w-8 text-amber-700 dark:text-amber-400" />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold">CV Not Parsed Yet</h2>
-                <p className="text-muted-foreground max-w-md">
-                  This candidate's CV is still being processed. Please wait for the CV parsing to complete before viewing the profile.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 pt-2">
-                <Badge variant="outline">{candidate.status}</Badge>
-                <span className="text-sm text-muted-foreground">
-                  {candidate.name || candidate.cv_filename}
-                </span>
-              </div>
-              <Button onClick={() => router.back()} className="mt-4">
-                Go Back
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  const pdfUrl = candidate ? `/api/candidates/${candidateId}/pdf` : ''
-
   return (
-    <>
-      <div className={cn(
-        "space-y-6 transition-all duration-300",
-        pdfViewerOpen && "mr-0 sm:mr-[25%] md:mr-[33%] lg:mr-[50%] xl:mr-[40%]"
-      )}>
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="space-y-4"
-      >
-        <Button variant="ghost" onClick={() => router.back()} className="mb-4 gap-2">
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
           <span aria-hidden>←</span> Back
         </Button>
 
-        <div className="relative">
-          <div className="absolute -top-6 -left-6 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl" />
-          <div className="relative flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                  {(candidate.name || candidate.cv_filename)?.[0]?.toUpperCase() || '?'}
-                </div>
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-bold">
-                    {candidate.name || candidate.cv_filename}
-                  </h1>
-                  {candidate.email && (
-                    <p className="text-muted-foreground text-sm mt-1">{candidate.email}</p>
-                  )}
-                </div>
-                <Badge variant="outline" className="bg-muted/50">{candidate.status}</Badge>
-              </div>
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-bold mb-2">
+                {candidate.name || candidate.cv_filename}
+              </h1>
+              <Badge variant="outline">{candidate.status}</Badge>
             </div>
+            {candidate.email && (
+              <p className="text-muted-foreground text-sm">{candidate.email}</p>
+            )}
+          </div>
 
-            <div className="flex items-center gap-2">
-              {isParsed && !hasEvaluation && (
-                <Button
-                  onClick={() => evaluateMutation.mutate()}
-                  disabled={evaluateMutation.isPending}
-                  size="sm"
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 shadow-lg shadow-purple-500/25"
-                >
-                  {evaluateMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Evaluating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Evaluate Candidate
-                    </>
-                  )}
-                </Button>
-              )}
-              <Button
-                onClick={() => setPdfViewerOpen(true)}
-                variant="outline"
-                size="sm"
-                className="border-2"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                View Resume
-              </Button>
+          <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                <Button variant="glass" size="sm" className="h-9 w-9 p-0">
                   <MoreVertical className="h-4 w-4" />
                   <span className="sr-only">Open menu</span>
                 </Button>
@@ -428,31 +435,15 @@ export default function CandidateDetailPage() {
             </DropdownMenu>
           </div>
         </div>
-        </div>
-      </motion.div>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="lg:col-span-2 space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-          >
-            <Card className="border-2 hover:border-purple-500/30 transition-all overflow-hidden relative">
-              {/* Gradient accent */}
-              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 rounded-bl-full" />
-              
-              <CardHeader className="relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                    <FileText className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <CardTitle>Profile</CardTitle>
-                    <CardDescription>AI-parsed CV information</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile</CardTitle>
+              <CardDescription>AI-parsed CV information</CardDescription>
+            </CardHeader>
             <CardContent>
             {candidate.profile ? (
               <div className="space-y-4">
@@ -486,70 +477,47 @@ export default function CandidateDetailPage() {
             ) : (
               <div className="text-muted-foreground">Profile parsing in progress...</div>
             )}
-            </CardContent>
-          </Card>
-          </motion.div>
+          </CardContent>
+        </Card>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <Card className="border-2 hover:border-purple-500/30 transition-all overflow-hidden relative">
-              {/* Gradient accent */}
-              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-purple-500/5 to-pink-500/5 rounded-bl-full" />
-              
-              <CardHeader className="relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                    <Sparkles className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <CardTitle>Evaluation</CardTitle>
-                    <CardDescription>AI-powered candidate assessment</CardDescription>
-                  </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Evaluation</CardTitle>
+            <CardDescription>AI-powered candidate assessment</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {evaluateMutation.isPending ? (
+              <EvaluationLoadingState />
+            ) : !evaluation ? (
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  No evaluation yet. Click below to evaluate this candidate.
+                </p>
+                <Button
+                  onClick={() => evaluateMutation.mutate()}
+                  disabled={!candidate.profile}
+                >
+                  Evaluate Candidate
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={
+                      evaluation.decision === 'yes'
+                        ? 'default'
+                        : evaluation.decision === 'maybe'
+                        ? 'secondary'
+                        : 'destructive'
+                    }
+                  >
+                    {evaluation.decision.toUpperCase()}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {(evaluation.confidence * 100).toFixed(0)}% confidence
+                  </span>
                 </div>
-              </CardHeader>
-              <CardContent className="relative z-10">
-                {!evaluation ? (
-                  <div className="space-y-4 text-center py-8">
-                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                      <Sparkles className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <p className="text-muted-foreground">
-                      No evaluation yet. Click below to evaluate this candidate.
-                    </p>
-                    <Button
-                      onClick={() => evaluateMutation.mutate()}
-                      disabled={evaluateMutation.isPending || !candidate.profile}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 shadow-lg shadow-purple-500/25"
-                    >
-                      {evaluateMutation.isPending ? 'Evaluating...' : 'Evaluate Candidate'}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <Badge
-                        variant={
-                          evaluation.decision === 'yes'
-                            ? 'default'
-                            : evaluation.decision === 'maybe'
-                            ? 'secondary'
-                            : 'destructive'
-                        }
-                        className={cn(
-                          evaluation.decision === 'yes' && "bg-gradient-to-r from-green-600 to-emerald-600 text-white border-0 shadow-lg shadow-green-500/25",
-                          evaluation.decision === 'maybe' && "bg-gradient-to-r from-amber-600 to-orange-600 text-white border-0",
-                          "text-sm px-3 py-1"
-                        )}
-                      >
-                        {evaluation.decision.toUpperCase()}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {(evaluation.confidence * 100).toFixed(0)}% confidence
-                      </span>
-                    </div>
 
                 <div>
                   <h3 className="font-semibold mb-2">Summary</h3>
@@ -613,10 +581,10 @@ export default function CandidateDetailPage() {
                 )}
               </div>
             )}
-              </CardContent>
-            </Card>
-          </motion.div>
+          </CardContent>
+        </Card>
         </div>
+
       </div>
 
       {/* Floating Chat */}
@@ -630,71 +598,34 @@ export default function CandidateDetailPage() {
       {evaluation && (
         <>
           {/* Quick Overview - 10 Second Evaluation */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            <Card className="mt-6 border-2 hover:border-purple-500/30 transition-all overflow-hidden relative">
-              {/* Gradient accent */}
-              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-purple-500/5 to-pink-500/5 rounded-bl-full" />
-              
-              <CardHeader className="relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                    <TrendingUp className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <CardTitle>Quick Overview</CardTitle>
-                    <CardDescription>10-second evaluation summary</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="relative z-10">
-                <div className="grid md:grid-cols-3 gap-4">
-                <div className="text-center p-4 border rounded-lg bg-background">
-                  <div className={cn(
-                    "text-3xl font-bold mb-2",
-                    evaluation.overall_match_score >= 0.8
-                      ? "text-green-700 dark:text-green-400"
-                      : evaluation.overall_match_score >= 0.6
-                      ? "text-amber-700 dark:text-amber-400"
-                      : "text-red-700 dark:text-red-400"
-                  )}>
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Quick Overview</CardTitle>
+              <CardDescription>10-second evaluation summary</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-3xl font-bold mb-2">
                     {(evaluation.overall_match_score * 100).toFixed(0)}%
                   </div>
-                  <div className="text-sm text-muted-foreground font-medium">Match Score</div>
+                  <div className="text-sm text-muted-foreground">Match Score</div>
                 </div>
-                <div className="text-center p-4 border rounded-lg bg-background">
-                  <div className={cn(
-                    "text-3xl font-bold mb-2",
-                    evaluation.decision === 'yes'
-                      ? "text-green-700 dark:text-green-400"
-                      : evaluation.decision === 'maybe'
-                      ? "text-amber-700 dark:text-amber-400"
-                      : "text-red-700 dark:text-red-400"
-                  )}>
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-3xl font-bold mb-2">
                     {evaluation.decision.toUpperCase()}
                   </div>
-                  <div className="text-sm text-muted-foreground font-medium">Decision</div>
+                  <div className="text-sm text-muted-foreground">Decision</div>
                 </div>
-                <div className="text-center p-4 border rounded-lg bg-background">
-                  <div className={cn(
-                    "text-3xl font-bold mb-2",
-                    evaluation.confidence >= 0.8
-                      ? "text-green-700 dark:text-green-400"
-                      : evaluation.confidence >= 0.6
-                      ? "text-amber-700 dark:text-amber-400"
-                      : "text-red-700 dark:text-red-400"
-                  )}>
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-3xl font-bold mb-2">
                     {(evaluation.confidence * 100).toFixed(0)}%
                   </div>
-                  <div className="text-sm text-muted-foreground font-medium">Confidence</div>
+                  <div className="text-sm text-muted-foreground">Confidence</div>
                 </div>
               </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+            </CardContent>
+          </Card>
 
           {/* Enhanced Evaluation Sections */}
           {evaluation.jd_requirements_analysis && (
@@ -706,7 +637,7 @@ export default function CandidateDetailPage() {
               <CardContent className="space-y-4">
                 {evaluation.jd_requirements_analysis.must_have && evaluation.jd_requirements_analysis.must_have.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-red-700 dark:text-red-400 flex items-center gap-2">
+                    <h3 className="font-semibold mb-2 text-red-700 flex items-center gap-2">
                       <AlertCircle className="h-4 w-4" />
                       Must-Have Requirements (Critical)
                     </h3>
@@ -722,7 +653,7 @@ export default function CandidateDetailPage() {
                 )}
                 {evaluation.jd_requirements_analysis.nice_to_have && evaluation.jd_requirements_analysis.nice_to_have.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-blue-700 dark:text-blue-400">Nice-to-Have Requirements</h3>
+                    <h3 className="font-semibold mb-2 text-blue-700">Nice-to-Have Requirements</h3>
                     <ul className="list-disc list-inside space-y-1">
                       {evaluation.jd_requirements_analysis.nice_to_have.map((req: any, idx: number) => (
                         <li key={idx} className="text-sm">
@@ -737,98 +668,38 @@ export default function CandidateDetailPage() {
             </Card>
           )}
 
-          {/* Experience & Education Analysis */}
+          {/* Experience Analysis */}
           {evaluation.experience_analysis && (
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle>Experience & Education</CardTitle>
-                <CardDescription>Work experience and education analysis</CardDescription>
+                <CardTitle>Experience Analysis</CardTitle>
+                <CardDescription>Detailed years calculation and gap analysis</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col lg:flex-row gap-6">
-                  {/* Work Experience - First */}
-                  <div className="flex-1 space-y-4">
-                    <h3 className="font-semibold text-lg">Experience</h3>
-                    <div className="space-y-3">
-                      <div className={cn(
-                        "p-4 rounded-lg border-2",
-                        evaluation.experience_analysis.matches
-                          ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50"
-                          : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/50"
-                      )}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold">JD Requires:</span>
-                          <span>{evaluation.experience_analysis.jd_requirement}</span>
-                        </div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold">Candidate Has:</span>
-                          <span className="flex items-center gap-2">
-                            {evaluation.experience_analysis.candidate_years} years
-                            {evaluation.experience_analysis.matches ? (
-                              <CheckCircle2 className="h-4 w-4 text-green-700 dark:text-green-400" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-red-700 dark:text-red-400" />
-                            )}
-                          </span>
-                        </div>
-                        {evaluation.experience_analysis.matches && evaluation.experience_analysis.calculated_from_cv && (
-                          <div className="mt-3 pt-3 border-t text-sm text-muted-foreground">
-                            {evaluation.experience_analysis.calculated_from_cv}
-                          </div>
-                        )}
-                        {evaluation.experience_analysis.gap_analysis && !evaluation.experience_analysis.matches && (
-                          <div className="mt-3 pt-3 border-t text-sm">
-                            {evaluation.experience_analysis.gap_analysis}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                    <span className="font-semibold">JD Requirement:</span>
+                    <span>{evaluation.experience_analysis.jd_requirement}</span>
                   </div>
-
-                  {/* Education - Second */}
-                  {evaluation.experience_analysis.detailed_education_analysis && 
-                   evaluation.experience_analysis.detailed_education_analysis.length > 0 && (
-                    <div className="flex-1 space-y-4">
-                      <h3 className="font-semibold text-lg">Education</h3>
-                      <div className="space-y-3">
-                        {evaluation.experience_analysis.detailed_education_analysis.map((edu: any, idx: number) => {
-                          const getMatchColor = (status: string) => {
-                            if (status === 'exact_match') return 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50'
-                            if (status === 'similar_match') return 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50'
-                            return 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/50'
-                          }
-                          const getMatchIcon = (status: string) => {
-                            if (status === 'exact_match') return <CheckCircle2 className="h-4 w-4 text-green-700 dark:text-green-400" />
-                            if (status === 'similar_match') return <AlertCircle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-                            return <XCircle className="h-4 w-4 text-red-700 dark:text-red-400" />
-                          }
-                          
-                          return (
-                            <div
-                              key={idx}
-                              className={cn("p-4 rounded-lg border-2", getMatchColor(edu.match_status))}
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                {getMatchIcon(edu.match_status)}
-                                <span className="font-semibold text-sm">JD Requires:</span>
-                                <span className="text-sm">{edu.jd_requirement}</span>
-                              </div>
-                              <div className="pt-2 border-t">
-                                <span className="font-semibold text-sm">Candidate Has:</span>
-                                <p className="mt-1 text-sm">
-                                  <span className="font-semibold capitalize">{edu.degree_level}</span>
-                                  {edu.degree_field && (
-                                    <> in <span className="font-semibold">{edu.degree_field}</span></>
-                                  )}
-                                </p>
-                                {edu.candidate_has && (
-                                  <p className="text-xs text-muted-foreground mt-1">{edu.candidate_has}</p>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
+                  <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                    <span className="font-semibold">Candidate Years:</span>
+                    <span className="flex items-center gap-2">
+                      {evaluation.experience_analysis.candidate_years} years
+                      {evaluation.experience_analysis.matches ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      )}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="text-sm font-semibold mb-1">Calculation:</div>
+                    <div className="text-xs text-muted-foreground">{evaluation.experience_analysis.calculated_from_cv}</div>
+                  </div>
+                  {evaluation.experience_analysis.gap_analysis && (
+                    <div className="p-3 border rounded-lg">
+                      <div className="text-sm font-semibold mb-1">Gap Analysis:</div>
+                      <div className="text-sm">{evaluation.experience_analysis.gap_analysis}</div>
                     </div>
                   )}
                 </div>
@@ -859,7 +730,7 @@ export default function CandidateDetailPage() {
                       </div>
                       <div className="ml-4">
                         {skill.matches ? (
-                            <Badge className="bg-green-600 text-white dark:bg-green-500 dark:text-gray-900">Match</Badge>
+                          <Badge className="bg-green-100 text-green-800">Match</Badge>
                         ) : (
                           <Badge variant="destructive">Gap</Badge>
                         )}
@@ -975,7 +846,7 @@ export default function CandidateDetailPage() {
                     <div className="text-sm mb-3">{evaluation.company_fit_report.overall_hr_verdict.one_line}</div>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <div className="text-sm font-semibold mb-2 text-green-700 dark:text-green-400">Top reasons to hire</div>
+                        <div className="text-sm font-semibold mb-2 text-green-700">Top reasons to hire</div>
                         <ul className="list-disc list-inside space-y-1 text-sm">
                           {evaluation.company_fit_report.overall_hr_verdict.top_3_reasons_to_hire?.map((x, idx) => (
                             <li key={idx}>{x}</li>
@@ -983,7 +854,7 @@ export default function CandidateDetailPage() {
                         </ul>
                       </div>
                       <div>
-                        <div className="text-sm font-semibold mb-2 text-red-700 dark:text-red-400">Top reasons not to hire</div>
+                        <div className="text-sm font-semibold mb-2 text-red-700">Top reasons not to hire</div>
                         <ul className="list-disc list-inside space-y-1 text-sm">
                           {evaluation.company_fit_report.overall_hr_verdict.top_3_reasons_not_to_hire?.map((x, idx) => (
                             <li key={idx}>{x}</li>
@@ -1073,13 +944,13 @@ export default function CandidateDetailPage() {
                           </div>
                         </div>
                         {exp.matches ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-700 dark:text-green-400 flex-shrink-0" />
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
                         ) : (
-                          <XCircle className="h-5 w-5 text-red-700 dark:text-red-400 flex-shrink-0" />
+                          <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
                         )}
                       </div>
                       {!exp.matches && exp.gap && (
-                        <div className="mt-2 text-sm text-amber-700 dark:text-amber-400">
+                        <div className="mt-2 text-sm text-yellow-700">
                           Gap: {exp.gap} ({exp.severity})
                         </div>
                       )}
@@ -1147,10 +1018,10 @@ export default function CandidateDetailPage() {
                     <div className="flex items-center gap-2">
                       <LinkIcon className="h-4 w-4" />
                       <a
-                        href={normalizeUrl(evaluation.portfolio_links.linkedin)}
+                        href={evaluation.portfolio_links.linkedin}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1"
+                        className="text-blue-600 hover:underline flex items-center gap-1"
                       >
                         LinkedIn
                         <ExternalLink className="h-3 w-3" />
@@ -1161,10 +1032,10 @@ export default function CandidateDetailPage() {
                     <div className="flex items-center gap-2">
                       <LinkIcon className="h-4 w-4" />
                       <a
-                        href={normalizeUrl(evaluation.portfolio_links.github)}
+                        href={evaluation.portfolio_links.github}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1"
+                        className="text-blue-600 hover:underline flex items-center gap-1"
                       >
                         GitHub
                         <ExternalLink className="h-3 w-3" />
@@ -1175,10 +1046,10 @@ export default function CandidateDetailPage() {
                     <div className="flex items-center gap-2">
                       <LinkIcon className="h-4 w-4" />
                       <a
-                        href={normalizeUrl(evaluation.portfolio_links.portfolio)}
+                        href={evaluation.portfolio_links.portfolio}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1"
+                        className="text-blue-600 hover:underline flex items-center gap-1"
                       >
                         Portfolio
                         <ExternalLink className="h-3 w-3" />
@@ -1192,7 +1063,7 @@ export default function CandidateDetailPage() {
                         <div key={idx} className="flex items-center gap-2">
                           <LinkIcon className="h-4 w-4" />
                           <a
-                            href={normalizeUrl(link)}
+                            href={link}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline flex items-center gap-1 text-sm"
@@ -1205,9 +1076,9 @@ export default function CandidateDetailPage() {
                     </div>
                   )}
                   {evaluation.portfolio_links.missing_expected && evaluation.portfolio_links.missing_expected.length > 0 && (
-                      <div className="mt-3 p-3 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800/50 rounded-lg">
-                        <div className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">Missing Expected Links:</div>
-                        <ul className="list-disc list-inside text-sm text-amber-700 dark:text-amber-400">
+                    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="text-sm font-semibold text-yellow-800 mb-1">Missing Expected Links:</div>
+                      <ul className="list-disc list-inside text-sm text-yellow-700">
                         {evaluation.portfolio_links.missing_expected.map((missing: string, idx: number) => (
                           <li key={idx}>{missing}</li>
                         ))}
@@ -1234,26 +1105,26 @@ export default function CandidateDetailPage() {
                         <Badge variant="outline">{comp.category}</Badge>
                         <div className="flex items-center gap-2">
                           {comp.match_status === 'perfect_match' && (
-                            <Badge className="bg-green-600 text-white dark:bg-green-500 dark:text-gray-900">Perfect Match</Badge>
+                            <Badge className="bg-green-100 text-green-800">Perfect Match</Badge>
                           )}
                           {comp.match_status === 'partial_match' && (
-                            <Badge className="bg-amber-600 text-white dark:bg-amber-500 dark:text-gray-900">Partial Match</Badge>
+                            <Badge className="bg-yellow-100 text-yellow-800">Partial Match</Badge>
                           )}
                           {comp.match_status === 'no_match' && (
                             <Badge variant="destructive">No Match</Badge>
                           )}
                           {comp.match_status === 'exceeds' && (
-                            <Badge className="bg-blue-600 text-white dark:bg-blue-500 dark:text-gray-900">Exceeds</Badge>
+                            <Badge className="bg-blue-100 text-blue-800">Exceeds</Badge>
                           )}
                         </div>
                       </div>
                       <div className="grid md:grid-cols-2 gap-4">
-                        <div className="p-3 bg-red-50/80 dark:bg-red-950/30 border border-red-300 dark:border-red-800/50 rounded">
-                          <div className="text-xs font-semibold text-red-800 dark:text-red-300 mb-1">JD Requirement:</div>
+                        <div className="p-3 bg-red-50 border border-red-200 rounded">
+                          <div className="text-xs font-semibold text-red-800 mb-1">JD Requirement:</div>
                           <div className="text-sm">{comp.jd_requirement}</div>
                         </div>
-                        <div className="p-3 bg-blue-50/80 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-800/50 rounded">
-                          <div className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Candidate Evidence:</div>
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                          <div className="text-xs font-semibold text-blue-800 mb-1">Candidate Evidence:</div>
                           <div className="text-sm">{comp.candidate_evidence || 'Not found'}</div>
                         </div>
                       </div>
@@ -1277,7 +1148,7 @@ export default function CandidateDetailPage() {
           {evaluation.matching_strengths && (
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle className="text-green-700 dark:text-green-400">Matching Strengths</CardTitle>
+                <CardTitle className="text-green-700">Matching Strengths</CardTitle>
                 <CardDescription>Skills and experience that match job requirements</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1296,19 +1167,19 @@ export default function CandidateDetailPage() {
                               <div className="text-sm text-muted-foreground mt-1">
                                 JD: {skill.jd_requirement}
                               </div>
-                              <div className="text-sm text-green-700 dark:text-green-400 mt-1">
+                              <div className="text-sm text-green-700 mt-1">
                                 Candidate: {skill.candidate_evidence}
                               </div>
                             </div>
-                            <Badge className="bg-green-600 text-white dark:bg-green-500 dark:text-gray-900">
+                            <Badge className="bg-green-100 text-green-800">
                               {skill.match_percentage}% Match
                             </Badge>
                           </div>
                           {skill.evidence && (
-                            <div className="mt-2 p-2 bg-green-50/80 dark:bg-green-950/30 rounded text-xs border border-green-300 dark:border-green-800/50">
-                              <div className="font-semibold mb-1 text-green-800 dark:text-green-300">Evidence:</div>
-                              <div className="text-green-900 dark:text-green-200">&quot;{skill.evidence.cv_snippet}&quot;</div>
-                              <div className="text-green-700 dark:text-green-400 mt-1">
+                            <div className="mt-2 p-2 bg-green-50 rounded text-xs border border-green-200">
+                              <div className="font-semibold mb-1 text-green-800">Evidence:</div>
+                              <div className="text-green-900">&quot;{skill.evidence.cv_snippet}&quot;</div>
+                              <div className="text-green-700 mt-1">
                                 Chunk {skill.evidence.chunk_index}
                               </div>
                             </div>
@@ -1334,22 +1205,22 @@ export default function CandidateDetailPage() {
                               <div className="text-sm text-muted-foreground mt-1">
                                 JD: {exp.jd_requirement}
                               </div>
-                              <div className="text-sm text-green-700 dark:text-green-400 mt-1">
+                              <div className="text-sm text-green-700 mt-1">
                                 Candidate: {exp.candidate_evidence}
                               </div>
                               {exp.gap && (
-                                <div className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                                <div className="text-xs text-yellow-700 mt-1">
                                   Note: {exp.gap}
                                 </div>
                               )}
                             </div>
-                            <Badge className="bg-green-600 text-white dark:bg-green-500 dark:text-gray-900">
+                            <Badge className="bg-green-100 text-green-800">
                               {exp.match_percentage}% Match
                             </Badge>
                           </div>
                           {exp.evidence && (
-                            <div className="mt-2 p-2 bg-green-50/80 dark:bg-green-950/30 rounded text-xs border border-green-300 dark:border-green-800/50">
-                              <div className="text-green-700 dark:text-green-400">
+                            <div className="mt-2 p-2 bg-green-50 rounded text-xs border border-green-200">
+                              <div className="text-green-700">
                                 Evidence from Chunk {exp.evidence.chunk_index}
                               </div>
                             </div>
@@ -1367,13 +1238,13 @@ export default function CandidateDetailPage() {
           {evaluation.missing_gaps && (
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle className="text-red-700 dark:text-red-400">Missing Gaps</CardTitle>
+                <CardTitle className="text-red-700">Missing Gaps</CardTitle>
                 <CardDescription>What the candidate is missing for this role</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {evaluation.missing_gaps.technology_gaps && evaluation.missing_gaps.technology_gaps.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-red-700 dark:text-red-400 flex items-center gap-2">
+                    <h3 className="font-semibold mb-2 text-red-700 flex items-center gap-2">
                       <XCircle className="h-4 w-4" />
                       Technology Gaps
                     </h3>
@@ -1387,7 +1258,7 @@ export default function CandidateDetailPage() {
 
                 {evaluation.missing_gaps.experience_gaps && evaluation.missing_gaps.experience_gaps.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-red-700 dark:text-red-400 flex items-center gap-2">
+                    <h3 className="font-semibold mb-2 text-red-700 flex items-center gap-2">
                       <XCircle className="h-4 w-4" />
                       Experience Gaps
                     </h3>
@@ -1401,7 +1272,7 @@ export default function CandidateDetailPage() {
 
                 {evaluation.missing_gaps.skill_gaps && evaluation.missing_gaps.skill_gaps.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-red-700 dark:text-red-400 flex items-center gap-2">
+                    <h3 className="font-semibold mb-2 text-red-700 flex items-center gap-2">
                       <XCircle className="h-4 w-4" />
                       Skill Gaps
                     </h3>
@@ -1415,7 +1286,7 @@ export default function CandidateDetailPage() {
 
                 {evaluation.missing_gaps.other_gaps && evaluation.missing_gaps.other_gaps.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-red-700 dark:text-red-400 flex items-center gap-2">
+                    <h3 className="font-semibold mb-2 text-red-700 flex items-center gap-2">
                       <XCircle className="h-4 w-4" />
                       Other Gaps
                     </h3>
@@ -1446,14 +1317,14 @@ export default function CandidateDetailPage() {
                     </h3>
                     <div className="space-y-3">
                       {evaluation.brutal_gap_analysis.critical_gaps.map((gap: any, idx: number) => (
-                        <div key={idx} className="border-l-4 border-red-600 dark:border-red-500 pl-4 py-3 bg-red-50/80 dark:bg-red-950/30 rounded">
-                          <div className="font-semibold text-red-800 dark:text-red-300 mb-2">{gap.gap}</div>
+                        <div key={idx} className="border-l-4 border-red-500 pl-4 py-3 bg-red-50 rounded">
+                          <div className="font-semibold text-red-800 mb-2">{gap.gap}</div>
                           <div className="text-sm space-y-1">
                             <div><strong>Impact:</strong> {gap.impact}</div>
                             <div><strong>JD Requires:</strong> {gap.jd_requirement}</div>
                             <div><strong>Candidate Has:</strong> {gap.candidate_has}</div>
                             {gap.indirect_experience && (
-                              <div className="text-amber-700 dark:text-amber-400 mt-2">
+                              <div className="text-yellow-700 mt-2">
                                 <strong>Indirect Experience:</strong> {gap.indirect_experience}
                               </div>
                             )}
@@ -1466,17 +1337,17 @@ export default function CandidateDetailPage() {
 
                 {evaluation.brutal_gap_analysis.major_gaps && evaluation.brutal_gap_analysis.major_gaps.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-3 text-orange-700 dark:text-orange-400">Major Gaps</h3>
+                    <h3 className="font-semibold mb-3 text-orange-700">Major Gaps</h3>
                     <div className="space-y-3">
                       {evaluation.brutal_gap_analysis.major_gaps.map((gap: any, idx: number) => (
-                        <div key={idx} className="border-l-4 border-orange-600 dark:border-orange-500 pl-4 py-3 bg-orange-50/80 dark:bg-orange-950/30 rounded">
-                          <div className="font-semibold text-orange-800 dark:text-orange-300 mb-2">{gap.gap}</div>
+                        <div key={idx} className="border-l-4 border-orange-500 pl-4 py-3 bg-orange-50 rounded">
+                          <div className="font-semibold text-orange-800 mb-2">{gap.gap}</div>
                           <div className="text-sm space-y-1">
                             <div><strong>Impact:</strong> {gap.impact}</div>
                             <div><strong>JD Requires:</strong> {gap.jd_requirement}</div>
                             <div><strong>Candidate Has:</strong> {gap.candidate_has}</div>
                             {gap.indirect_experience && (
-                              <div className="text-amber-700 dark:text-amber-400 mt-2">
+                              <div className="text-yellow-700 mt-2">
                                 <strong>Indirect Experience:</strong> {gap.indirect_experience}
                               </div>
                             )}
@@ -1489,17 +1360,17 @@ export default function CandidateDetailPage() {
 
                 {evaluation.brutal_gap_analysis.moderate_gaps && evaluation.brutal_gap_analysis.moderate_gaps.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-3 text-amber-700 dark:text-amber-400">Moderate Gaps</h3>
+                    <h3 className="font-semibold mb-3 text-yellow-700">Moderate Gaps</h3>
                     <div className="space-y-3">
                       {evaluation.brutal_gap_analysis.moderate_gaps.map((gap: any, idx: number) => (
-                        <div key={idx} className="border-l-4 border-amber-600 dark:border-amber-500 pl-4 py-3 bg-amber-50/80 dark:bg-amber-950/30 rounded">
-                          <div className="font-semibold text-amber-800 dark:text-amber-300 mb-2">{gap.gap}</div>
+                        <div key={idx} className="border-l-4 border-yellow-500 pl-4 py-3 bg-yellow-50 rounded">
+                          <div className="font-semibold text-yellow-800 mb-2">{gap.gap}</div>
                           <div className="text-sm space-y-1">
                             <div><strong>Impact:</strong> {gap.impact}</div>
                             <div><strong>JD Requires:</strong> {gap.jd_requirement}</div>
                             <div><strong>Candidate Has:</strong> {gap.candidate_has}</div>
                             {gap.indirect_experience && (
-                              <div className="text-amber-700 dark:text-amber-400 mt-2">
+                              <div className="text-yellow-700 mt-2">
                                 <strong>Indirect Experience:</strong> {gap.indirect_experience}
                               </div>
                             )}
@@ -1512,7 +1383,7 @@ export default function CandidateDetailPage() {
 
                 {evaluation.brutal_gap_analysis.indirect_experience_analysis && evaluation.brutal_gap_analysis.indirect_experience_analysis.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-3 text-blue-700 dark:text-blue-400">Indirect Experience Analysis</h3>
+                    <h3 className="font-semibold mb-3 text-blue-700">Indirect Experience Analysis</h3>
                     <CardDescription className="mb-3">
                       What the candidate has that&apos;s related but not exact - transferability assessment
                     </CardDescription>
@@ -1520,13 +1391,13 @@ export default function CandidateDetailPage() {
                       {evaluation.brutal_gap_analysis.indirect_experience_analysis.map((indirect: any, idx: number) => (
                         <div key={idx} className="border rounded-lg p-4">
                           <div className="grid md:grid-cols-2 gap-4 mb-3">
-                            <div className="p-3 bg-red-50/80 dark:bg-red-950/30 border border-red-300 dark:border-red-800/50 rounded">
-                              <div className="text-xs font-semibold text-red-800 dark:text-red-300 mb-1">Required:</div>
-                              <div className="text-sm text-red-900 dark:text-red-200">{indirect.required}</div>
+                            <div className="p-3 bg-red-50 border border-red-200 rounded">
+                              <div className="text-xs font-semibold text-red-800 mb-1">Required:</div>
+                              <div className="text-sm text-red-900">{indirect.required}</div>
                             </div>
-                            <div className="p-3 bg-blue-50/80 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-800/50 rounded">
-                              <div className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Candidate Has:</div>
-                              <div className="text-sm text-blue-900 dark:text-blue-200">{indirect.candidate_indirect}</div>
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                              <div className="text-xs font-semibold text-blue-800 mb-1">Candidate Has:</div>
+                              <div className="text-sm text-blue-900">{indirect.candidate_indirect}</div>
                             </div>
                           </div>
                           <div className="flex items-center justify-between">
@@ -1561,7 +1432,7 @@ export default function CandidateDetailPage() {
             <CardContent className="space-y-4">
             {evaluation.strengths && evaluation.strengths.length > 0 && (
               <div>
-                <h3 className="font-semibold mb-2 text-green-700 dark:text-green-400">Strengths</h3>
+                <h3 className="font-semibold mb-2 text-green-700">Strengths</h3>
                 <ul className="list-disc list-inside space-y-1">
                   {evaluation.strengths.map((strength, idx) => (
                     <li key={idx} className="text-sm">
@@ -1579,7 +1450,7 @@ export default function CandidateDetailPage() {
 
             {evaluation.concerns && evaluation.concerns.length > 0 && (
               <div>
-                <h3 className="font-semibold mb-2 text-amber-700 dark:text-amber-400">Concerns</h3>
+                <h3 className="font-semibold mb-2 text-yellow-700">Concerns</h3>
                 <ul className="list-disc list-inside space-y-1">
                   {evaluation.concerns.map((concern, idx) => (
                     <li key={idx} className="text-sm">
@@ -1771,19 +1642,7 @@ export default function CandidateDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      </div>
-
-      {/* PDF Viewer */}
-      {candidate && (
-        <PDFViewer
-          isOpen={pdfViewerOpen}
-          onClose={() => setPdfViewerOpen(false)}
-          pdfUrl={pdfUrl}
-          filename={candidate.cv_filename}
-        />
-      )}
-    </>
+    </div>
   )
 }
 

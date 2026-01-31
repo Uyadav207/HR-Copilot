@@ -183,7 +183,7 @@ INSTRUCTIONS:
           }
           messages.push({ role: "user", content: question });
 
-          // Stream with OpenAI if configured, otherwise fallback to non-stream answer
+          // Stream with OpenAI if configured
           if (settings.llmProvider === "openai") {
             const client = new OpenAI({ apiKey: settings.openaiApiKey });
             const completion = await client.chat.completions.create({
@@ -201,6 +201,30 @@ INSTRUCTIONS:
               }
             }
 
+            sendEvent(controller, "done", {});
+            controller.close();
+            return;
+          }
+
+          // Stream with Gemini if configured
+          if (settings.llmProvider === "gemini" && settings.geminiApiKey) {
+            const { GoogleGenAI } = await import("@google/genai");
+            const ai = new GoogleGenAI({ apiKey: settings.geminiApiKey });
+            const userContent = messages
+              .filter((m) => m.role !== "system")
+              .map((m) => `${m.role}: ${m.content}`)
+              .join("\n\n");
+            const stream = await ai.models.generateContentStream({
+              model: settings.geminiModel,
+              contents: userContent,
+              config: { systemInstruction: systemPrompt, temperature: 0.7 },
+            });
+            for await (const chunk of stream) {
+              const delta = chunk.text ?? "";
+              if (delta) {
+                sendEvent(controller, "message", { delta });
+              }
+            }
             sendEvent(controller, "done", {});
             controller.close();
             return;

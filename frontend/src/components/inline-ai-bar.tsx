@@ -35,6 +35,15 @@ async function generateJD(
   })
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token')
+    if (token) headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
 async function* generateJDStream(
   message: string,
   conversationHistory: Message[],
@@ -43,9 +52,7 @@ async function* generateJDStream(
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
   const response = await fetch(`${API_URL}/api/jobs/generate-description`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       message,
       conversation_history: conversationHistory,
@@ -177,6 +184,7 @@ export function InlineAIBar({ jobTitle, onGenerate, onTitleUpdate, isVisible, on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     if (!input.trim() || isStreaming) return
 
     const userMessage: Message = {

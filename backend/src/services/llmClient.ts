@@ -1,13 +1,14 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { settings } from "../config.js";
 import type { JobBlueprint, CandidateProfile, CandidateEvaluation, EmailDraft } from "../schemas/ai.js";
 import type { RetrievedChunk } from "./vectorStoreService.js";
 
 export class LLMClient {
-  private client: OpenAI | Anthropic;
+  private client: OpenAI | Anthropic | GoogleGenAI;
   private model: string;
-  private provider: "openai" | "anthropic";
+  private provider: "openai" | "anthropic" | "gemini";
 
   constructor() {
     if (settings.llmProvider === "openai") {
@@ -24,6 +25,13 @@ export class LLMClient {
       this.client = new Anthropic({ apiKey: settings.anthropicApiKey });
       this.model = settings.anthropicModel;
       this.provider = "anthropic";
+    } else if (settings.llmProvider === "gemini") {
+      if (!settings.geminiApiKey) {
+        throw new Error("GEMINI_API_KEY not set");
+      }
+      this.client = new GoogleGenAI({ apiKey: settings.geminiApiKey });
+      this.model = settings.geminiModel;
+      this.provider = "gemini";
     } else {
       throw new Error(`Unsupported LLM provider: ${settings.llmProvider}`);
     }
@@ -35,6 +43,7 @@ export class LLMClient {
       model: this.model,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
+      max_tokens: 8192, // Ensure long evaluation outputs aren't truncated
     });
     return response.choices[0]?.message?.content || "";
   }
@@ -43,31 +52,238 @@ export class LLMClient {
     const client = this.client as Anthropic;
     const response = await client.messages.create({
       model: this.model,
-      max_tokens: 4096,
+      max_tokens: 8192, // Ensure long evaluation outputs aren't truncated
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
     });
     return response.content[0]?.type === "text" ? response.content[0].text : "";
   }
 
+  private async callGemini(prompt: string): Promise<string> {
+    const client = this.client as GoogleGenAI;
+    const response = await client.models.generateContent({
+      model: this.model,
+      contents: prompt,
+      config: {
+        temperature: 0.3,
+        maxOutputTokens: 8192, // Ensure long evaluation outputs aren't truncated
+      },
+    });
+    return response.text ?? "";
+  }
+
+  private async callLLM(prompt: string): Promise<string> {
+    if (this.provider === "openai") return this.callOpenAI(prompt);
+    if (this.provider === "anthropic") return this.callAnthropic(prompt);
+    if (this.provider === "gemini") return this.callGemini(prompt);
+    throw new Error(`Unsupported provider: ${this.provider}`);
+  }
+
   private extractJson(text: string): Record<string, any> {
     // Remove markdown code blocks if present
     let cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
 
-    try {
-      return JSON.parse(cleaned);
-    } catch (e) {
-      // Try to find JSON object in the text
-      const match = cleaned.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          return JSON.parse(match[0]);
-        } catch {
-          throw new Error(`Failed to parse JSON from LLM response: ${e}`);
+    const tryParse = (str: string): Record<string, any> | null => {
+      try {
+        return JSON.parse(str) as Record<string, any>;
+      } catch {
+        return null;
+      }
+    };
+
+    let result = tryParse(cleaned);
+    if (result) return result;
+
+    // Try to find JSON object in the text
+    const match = cleaned.match(/\{[\s\S]*/);
+    if (match) {
+      let candidate = match[0];
+      result = tryParse(candidate);
+      if (result) return result;
+
+      // Attempt repair for truncated JSON (common when LLM output is cut off)
+      const repaired = this.repairTruncatedJson(candidate);
+      result = tryParse(repaired);
+      if (result) return result;
+
+      // Try aggressive repair: fix common issues before closing brackets
+      const aggressiveRepair = this.aggressiveJsonRepair(candidate);
+      result = tryParse(aggressiveRepair);
+      if (result) return result;
+
+      // Fallback: try truncating from the end to find last valid JSON boundary
+      // Look for various field endings
+      const endings = ['",', '"},', '"]', '}]', ']}', 'true,', 'false,', 'null,'];
+      for (const ending of endings) {
+        const lastPos = candidate.lastIndexOf(ending);
+        if (lastPos > 0) {
+          for (let i = 0; i < 10; i++) {
+            const truncated = candidate.slice(0, lastPos + ending.length - 1 - i).replace(/[,:\s]+$/, "");
+            const closed = this.closeUnclosedBrackets(truncated);
+            result = tryParse(closed);
+            if (result) return result;
+          }
         }
       }
-      throw new Error(`Failed to parse JSON from LLM response: ${e}`);
+
+      // Last resort: find the deepest valid JSON object
+      result = this.extractPartialJson(candidate);
+      if (result) return result;
     }
+
+    throw new Error(`Failed to parse JSON from LLM response. Output may be truncated or malformed.`);
+  }
+
+  /** Aggressively repair JSON by fixing common truncation issues */
+  private aggressiveJsonRepair(str: string): string {
+    let fixed = str;
+    
+    // Remove trailing incomplete key-value pairs (e.g., `"key":` without value)
+    fixed = fixed.replace(/,\s*"[^"]*":\s*$/g, "");
+    fixed = fixed.replace(/,\s*"[^"]*"\s*$/g, "");
+    
+    // Fix trailing incomplete strings (e.g., `"value` without closing quote)
+    // Count quotes to see if we have an odd number
+    const quoteCount = (fixed.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      // Find the last quote and close the string
+      const lastQuote = fixed.lastIndexOf('"');
+      if (lastQuote > 0) {
+        // Check if it's the start of a value
+        const beforeQuote = fixed.slice(0, lastQuote).trim();
+        if (beforeQuote.endsWith(":") || beforeQuote.endsWith("[") || beforeQuote.endsWith(",")) {
+          fixed = fixed + '"';
+        }
+      }
+    }
+    
+    // Remove trailing commas before closing brackets
+    fixed = fixed.replace(/,(\s*[\]}])/g, "$1");
+    
+    // Remove trailing colons
+    fixed = fixed.replace(/:\s*$/g, ': null');
+    
+    // Remove dangling commas at the end
+    fixed = fixed.replace(/,\s*$/g, "");
+    
+    return this.repairTruncatedJson(fixed);
+  }
+
+  /** Try to extract a partial but valid JSON object from the start */
+  private extractPartialJson(str: string): Record<string, any> | null {
+    const tryParse = (s: string): Record<string, any> | null => {
+      try {
+        return JSON.parse(s) as Record<string, any>;
+      } catch {
+        return null;
+      }
+    };
+
+    // Try to find balanced braces from the start
+    let depth = 0;
+    let arrayDepth = 0;
+    let inString = false;
+    let escape = false;
+    let lastValidEnd = -1;
+
+    for (let i = 0; i < str.length; i++) {
+      const c = str[i];
+      
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      
+      if (inString) {
+        if (c === "\\") escape = true;
+        else if (c === '"') inString = false;
+        continue;
+      }
+      
+      if (c === '"') {
+        inString = true;
+        continue;
+      }
+      
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0 && arrayDepth === 0) {
+          lastValidEnd = i;
+        }
+      } else if (c === "[") arrayDepth++;
+      else if (c === "]") arrayDepth--;
+    }
+
+    // If we found a valid end point, try parsing up to there
+    if (lastValidEnd > 0) {
+      const partial = str.slice(0, lastValidEnd + 1);
+      const result = tryParse(partial);
+      if (result) return result;
+    }
+
+    // Try progressively shorter substrings, looking for valid JSON
+    for (let len = str.length; len > 100; len -= 50) {
+      const substring = str.slice(0, len);
+      const repaired = this.aggressiveJsonRepair(substring);
+      const result = tryParse(repaired);
+      if (result && Object.keys(result).length > 0) {
+        console.warn(`⚠️ [LLMClient] Recovered partial JSON (${Object.keys(result).length} keys)`);
+        return result;
+      }
+    }
+
+    return null;
+  }
+
+  /** Attempt to repair truncated JSON by closing unterminated strings and brackets */
+  private repairTruncatedJson(str: string): string {
+    let inString = false;
+    let stringChar = '"';
+    let escape = false;
+    let depth = 0;
+    let arrayDepth = 0;
+
+    for (let i = 0; i < str.length; i++) {
+      const c = str[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (inString) {
+        if (c === "\\") escape = true;
+        else if (c === stringChar) inString = false;
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        inString = true;
+        stringChar = c;
+        continue;
+      }
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === "[") arrayDepth++;
+      else if (c === "]") arrayDepth--;
+    }
+
+    let suffix = "";
+    if (inString) suffix += stringChar;
+    for (let i = 0; i < arrayDepth; i++) suffix += "]";
+    for (let i = 0; i < depth; i++) suffix += "}";
+    return str + suffix;
+  }
+
+  /** Close unclosed brackets by counting braces */
+  private closeUnclosedBrackets(str: string): string {
+    let depth = 0;
+    let arrayDepth = 0;
+    for (const c of str) {
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === "[") arrayDepth++;
+      else if (c === "]") arrayDepth--;
+    }
+    return str + "]".repeat(Math.max(0, arrayDepth)) + "}".repeat(Math.max(0, depth));
   }
 
   async parseJdToBlueprint(jobDescription: string): Promise<Record<string, any>> {
@@ -75,10 +291,7 @@ export class LLMClient {
     const promptTemplate = getCurrentPrompt("jd_to_blueprint");
     const prompt = promptTemplate.replace("{job_description}", jobDescription);
 
-    const response =
-      this.provider === "openai"
-        ? await this.callOpenAI(prompt)
-        : await this.callAnthropic(prompt);
+    const response = await this.callLLM(prompt);
 
     const blueprintDict = this.extractJson(response);
     // Basic validation - JobBlueprint schema would be validated at API level
@@ -90,10 +303,7 @@ export class LLMClient {
     const promptTemplate = getCurrentPrompt("cv_to_profile");
     const prompt = promptTemplate.replace("{cv_text}", cvText);
 
-    const response =
-      this.provider === "openai"
-        ? await this.callOpenAI(prompt)
-        : await this.callAnthropic(prompt);
+    const response = await this.callLLM(prompt);
 
     const profileDict = this.extractJson(response);
     return profileDict;
@@ -133,10 +343,7 @@ export class LLMClient {
       .replace("{cv_text}", cvText)
       .replace("{relevant_chunks}", chunksFormatted || "No relevant chunks found.");
 
-    const response =
-      this.provider === "openai"
-        ? await this.callOpenAI(prompt)
-        : await this.callAnthropic(prompt);
+    const response = await this.callLLM(prompt);
 
     const profileDict = this.extractJson(response);
     
@@ -164,10 +371,7 @@ export class LLMClient {
       .replace("{job_blueprint}", JSON.stringify(jobBlueprint, null, 2))
       .replace("{candidate_profile}", JSON.stringify(candidateProfile, null, 2));
 
-    const response =
-      this.provider === "openai"
-        ? await this.callOpenAI(prompt)
-        : await this.callAnthropic(prompt);
+    const response = await this.callLLM(prompt);
 
     const evaluationDict = this.extractJson(response);
     return evaluationDict;
@@ -207,10 +411,7 @@ export class LLMClient {
       .replace("{candidate_profile}", JSON.stringify(candidateProfile, null, 2))
       .replace("{cv_raw_text}", cvTextForPrompt);
 
-    const response =
-      this.provider === "openai"
-        ? await this.callOpenAI(prompt)
-        : await this.callAnthropic(prompt);
+    const response = await this.callLLM(prompt);
 
     const evaluationDict = this.extractJson(response);
     return evaluationDict;
@@ -253,10 +454,7 @@ export class LLMClient {
       .replace("{candidate_profile}", JSON.stringify(candidateProfile, null, 2))
       .replace("{relevant_cv_chunks}", chunksFormatted || "No relevant chunks found.");
 
-    const response =
-      this.provider === "openai"
-        ? await this.callOpenAI(prompt)
-        : await this.callAnthropic(prompt);
+    const response = await this.callLLM(prompt);
 
     const evaluationDict = this.extractJson(response);
     
@@ -314,10 +512,7 @@ export class LLMClient {
       .replace("{candidate_profile}", JSON.stringify(candidateProfile, null, 2))
       .replace("{relevant_cv_chunks}", chunksFormatted || "No relevant chunks found.");
 
-    const response =
-      this.provider === "openai"
-        ? await this.callOpenAI(prompt)
-        : await this.callAnthropic(prompt);
+    const response = await this.callLLM(prompt);
 
     const evaluationDict = this.extractJson(response);
     
@@ -385,10 +580,7 @@ export class LLMClient {
       throw new Error(`Invalid email type: ${emailType}`);
     }
 
-    const response =
-      this.provider === "openai"
-        ? await this.callOpenAI(prompt)
-        : await this.callAnthropic(prompt);
+    const response = await this.callLLM(prompt);
 
     const emailDict = this.extractJson(response);
     return emailDict;
@@ -436,8 +628,7 @@ Format the response as a complete, professional job description that can be used
         temperature: 0.7,
       });
       return response.choices[0]?.message?.content?.trim() || "";
-    } else {
-      // Anthropic
+    } else if (this.provider === "anthropic") {
       const client = this.client as Anthropic;
       const response = await client.messages.create({
         model: this.model,
@@ -452,6 +643,19 @@ Format the response as a complete, professional job description that can be used
         temperature: 0.7,
       });
       return response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
+    } else {
+      // Gemini
+      const client = this.client as GoogleGenAI;
+      const userContent = messages
+        .filter((msg) => msg.role !== "system")
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n\n");
+      const response = await client.models.generateContent({
+        model: this.model,
+        contents: userContent,
+        config: { systemInstruction: systemPrompt, temperature: 0.7 },
+      });
+      return (response.text ?? "").trim();
     }
   }
 
@@ -565,7 +769,7 @@ Format your response as valid JSON: {"title": "...", "description": "..."}`;
           yield { type: 'description' as const, content: fullContent.trim() };
         }
       }
-    } else {
+    } else if (this.provider === "anthropic") {
       // Anthropic streaming
       const client = this.client as Anthropic;
       const stream = await client.messages.stream({
@@ -636,6 +840,68 @@ Format your response as valid JSON: {"title": "...", "description": "..."}`;
         // Fallback: treat entire response as description
         if (fullContent.trim() && fullContent.trim() !== lastDescription) {
           yield { type: 'description' as const, content: fullContent.trim() };
+        }
+      }
+    } else {
+      // Gemini streaming
+      const client = this.client as GoogleGenAI;
+      const userContent = messages
+        .filter((msg) => msg.role !== "system")
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n\n");
+      const stream = await client.models.generateContentStream({
+        model: this.model,
+        contents: userContent,
+        config: { systemInstruction: systemPrompt, temperature: 0.7 },
+      });
+
+      let fullContent = "";
+      let lastTitle = "";
+      let lastDescription = "";
+
+      for await (const chunk of stream) {
+        const content = chunk.text ?? "";
+        if (content) {
+          fullContent += content;
+          try {
+            const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (parsed.title && parsed.title !== lastTitle) {
+                  lastTitle = parsed.title;
+                  yield { type: "title" as const, content: parsed.title };
+                }
+                if (parsed.description && parsed.description !== lastDescription) {
+                  lastDescription = parsed.description;
+                  yield { type: "description" as const, content: parsed.description };
+                }
+              } catch {
+                /* JSON not complete yet */
+              }
+            }
+          } catch {
+            /* continue */
+          }
+        }
+      }
+
+      try {
+        const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.title && parsed.title !== lastTitle) {
+            yield { type: "title" as const, content: parsed.title };
+          }
+          if (parsed.description && parsed.description !== lastDescription) {
+            yield { type: "description" as const, content: parsed.description };
+          }
+        } else if (fullContent.trim() && fullContent.trim() !== lastDescription) {
+          yield { type: "description" as const, content: fullContent.trim() };
+        }
+      } catch {
+        if (fullContent.trim() && fullContent.trim() !== lastDescription) {
+          yield { type: "description" as const, content: fullContent.trim() };
         }
       }
     }

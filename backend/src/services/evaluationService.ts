@@ -52,21 +52,36 @@ export class EvaluationService {
     );
 
     const llmClient = new LLMClient();
-    let evaluationData: Record<string, any>;
+    let evaluationData: Record<string, any> | undefined;
+    const maxRetries = 2;
 
-    try {
-      evaluationData = await llmClient.evaluateCandidateDirectEnhanced(
-        job.blueprint,
-        candidate.profile,
-        candidate.cvRawText
-      );
-      evaluationData = normalizeEvaluationOutput(evaluationData);
-      console.log(`✅ [Evaluation] Direct enhanced evaluation completed`);
-    } catch (error) {
-      console.error(`❌ [Evaluation] Error during evaluation:`, error);
-      throw new Error(
-        `Failed to evaluate candidate: ${error instanceof Error ? error.message : String(error)}`
-      );
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        evaluationData = await llmClient.evaluateCandidateDirectEnhanced(
+          job.blueprint,
+          candidate.profile,
+          candidate.cvRawText
+        );
+        evaluationData = normalizeEvaluationOutput(evaluationData);
+        console.log(`✅ [Evaluation] Direct enhanced evaluation completed`);
+        break;
+      } catch (error) {
+        const isParseError =
+          error instanceof Error &&
+          (error.message.includes("parse JSON") || error.message.includes("truncated"));
+        if (attempt < maxRetries && isParseError) {
+          console.warn(`⚠️ [Evaluation] Parse error on attempt ${attempt}, retrying...`);
+          continue;
+        }
+        console.error(`❌ [Evaluation] Error during evaluation:`, error);
+        throw new Error(
+          `Failed to evaluate candidate: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+
+    if (!evaluationData) {
+      throw new Error("Failed to evaluate candidate: no evaluation data");
     }
 
     // Create/update evaluation record
