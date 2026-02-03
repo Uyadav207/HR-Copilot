@@ -1,5 +1,10 @@
+/** Backend API base URL. Set via NEXT_PUBLIC_API_URL in .env.local. */
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+/**
+ * Sends an authenticated request to the backend. Adds Bearer token from localStorage
+ * and Content-Type: application/json when body is JSON. Throws on non-ok response.
+ */
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -40,6 +45,10 @@ export async function apiRequest<T>(
   return response.json()
 }
 
+/**
+ * Uploads a FormData payload (e.g. file upload). Uses same auth as apiRequest.
+ * Does not set Content-Type so the browser can set multipart boundary.
+ */
 export async function apiUpload<T>(
   endpoint: string,
   formData: FormData

@@ -1,15 +1,21 @@
+/**
+ * Application configuration loaded from environment variables.
+ * Uses dotenv for .env loading. All settings are exposed via the `settings` object.
+ */
 import { config } from "dotenv";
 
 config();
 
+/**
+ * Runtime settings for the HR Autopilot backend.
+ * Values are read from process.env with defaults where applicable.
+ */
 export interface Settings {
-  // Database
+  /** PostgreSQL connection string */
   databaseUrl: string;
-  
-  // Redis
+  /** Redis connection string for caching */
   redisUrl: string;
-  
-  // LLM Configuration
+  /** Active LLM provider: openai, anthropic, or gemini */
   llmProvider: "openai" | "anthropic" | "gemini";
   openaiApiKey: string;
   anthropicApiKey: string;
@@ -17,29 +23,23 @@ export interface Settings {
   openaiModel: string;
   anthropicModel: string;
   geminiModel: string;
-  
-  // Pinecone Configuration
+  /** Pinecone API key; required for RAG (CV chunking, candidate chat) */
   pineconeApiKey: string;
   pineconeIndexName: string;
   pineconeEnvironment?: string;
-  
-  // Embedding Configuration
+  /** Model used for embeddings (e.g. text-embedding-004) */
   embeddingModel: string;
+  /** Embedding vector dimension; must match Pinecone index */
   embeddingDimension: number;
-  
-  // Application
   environment: string;
   logLevel: string;
+  /** URL path prefix for all API routes (e.g. /api) */
   apiPrefix: string;
-
-  // Auth
+  /** Secret used to sign JWT tokens; must be at least 32 chars in production */
   jwtSecret: string;
   jwtExpiresInSeconds: number;
-  
-  // CORS
+  /** Allowed CORS origins */
   corsOrigins: string[];
-  
-  // Email Configuration
   emailHost: string;
   emailPort: number;
   emailUser: string;
@@ -49,6 +49,7 @@ export interface Settings {
   hiringManager: string;
 }
 
+/** Parses a comma-separated CORS origins string into an array of trimmed non-empty strings. */
 function parseCorsOrigins(originsStr: string): string[] {
   if (!originsStr || !originsStr.trim()) {
     return ["http://localhost:3000", "http://localhost:3001"];
@@ -59,6 +60,7 @@ function parseCorsOrigins(originsStr: string): string[] {
     .filter((origin) => origin.length > 0);
 }
 
+/** Loaded application settings. Use this instead of reading process.env directly. */
 export const settings: Settings = {
   databaseUrl: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/hr_autopilot",
   redisUrl: process.env.REDIS_URL || "redis://localhost:6379/0",

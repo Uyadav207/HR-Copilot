@@ -2,7 +2,7 @@
 
 **AI-Powered Candidate Evaluation & Hiring Pipeline**
 
-A modern, full-stack application that automates the candidate screening process using AI. Upload resumes, parse job descriptions, and get detailed AI-powered evaluations with match scores, gap analysis, and interview recommendations.
+A modern, full-stack application that automates the candidate screening process using AI. Upload resumes, parse job descriptions, and get detailed AI-powered evaluations with match scores, gap analysis, and interview recommendations. Supports RAG (Retrieval-Augmented Generation) via Pinecone for evidence-based CV parsing and candidate chat.
 
 ---
 
@@ -15,6 +15,10 @@ A modern, full-stack application that automates the candidate screening process 
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
 - [Project Structure](#project-structure)
+- [Evaluation Output Structure](#evaluation-output-structure)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Documentation](#documentation)
 
 ---
 
@@ -43,22 +47,22 @@ A modern, full-stack application that automates the candidate screening process 
 │                 │     │                 │     │                 │
 └─────────────────┘     └────────┬────────┘     └─────────────────┘
                                  │
-                                 │
-                    ┌────────────┼────────────┐
-                    │            │            │
-                    ▼            ▼            ▼
-             ┌──────────┐ ┌──────────┐ ┌──────────┐
-             │  Redis   │ │   LLM    │ │  Email   │
-             │  Cache   │ │ Provider │ │  (SMTP)  │
-             └──────────┘ └──────────┘ └──────────┘
+                    ┌────────────┼────────────┬────────────┐
+                    │            │            │            │
+                    ▼            ▼            ▼            ▼
+             ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+             │  Redis   │ │   LLM    │ │ Pinecone │ │  Email   │
+             │  Cache   │ │ Provider │ │ (Vector) │ │  (SMTP)  │
+             └──────────┘ └──────────┘ └──────────┘ └──────────┘
 ```
 
 ### Data Flow
 
 1. **Job Creation**: JD text → LLM → Structured Blueprint (skills, experience, responsibilities)
-2. **CV Upload**: PDF → Parser → LLM → Candidate Profile (skills, experience, education)
-3. **Evaluation**: Blueprint + Profile + CV Text → LLM → Detailed Evaluation with scores
-4. **Decision**: HR reviews evaluation → Makes decision → Auto-generates appropriate email
+2. **CV Upload**: PDF → Parser → Chunking → Embeddings → Pinecone; LLM (with optional RAG) → Candidate Profile
+3. **Evaluation**: Blueprint + Profile + CV Text (and optionally RAG chunks) → LLM → Detailed Evaluation with scores
+4. **Candidate Chat**: Question + Profile + Job Blueprint + RAG chunks → LLM → Answer (optionally streamed)
+5. **Decision**: HR reviews evaluation → Makes decision → Auto-generates appropriate email
 
 ---
 
@@ -118,44 +122,70 @@ docker compose up --build
 ```bash
 # Backend
 cd backend
+# Create backend/.env with at least LLM_PROVIDER, API key, JWT_SECRET, DATABASE_URL
 bun install
-bun run db:push    # Initialize database schema
-bun run dev        # Start dev server on :8000
+bun run db:migrate     # Initialize database schema
+bun run dev             # Start dev server on :8000
 
 # Frontend (separate terminal)
 cd frontend
+# Create frontend/.env.local with NEXT_PUBLIC_API_URL=http://localhost:8000
 npm install
-npm run dev        # Start dev server on :3000
+npm run dev             # Start dev server on :3000
 ```
+
+**Optional (RAG):** To enable CV chunking and candidate chat with citations, set `PINECONE_API_KEY` and `PINECONE_INDEX_NAME` in `backend/.env`, and create a Pinecone index with dimension `512` and metric `cosine`.
 
 ---
 
 ## Configuration
 
-### Environment Variables
+### Backend environment variables
 
-Create `backend/.env`:
+Create `backend/.env`. You can copy `backend/.env.example` and fill in values.
 
-```env
-# Required - Choose one LLM provider
-LLM_PROVIDER=gemini              # Options: gemini, openai, anthropic
-GEMINI_API_KEY=your_key          # If using Gemini
-OPENAI_API_KEY=your_key          # If using OpenAI
-ANTHROPIC_API_KEY=your_key       # If using Anthropic
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `LLM_PROVIDER` | Yes | `gemini`, `openai`, or `anthropic` |
+| `GEMINI_API_KEY` | If Gemini | Google AI API key |
+| `OPENAI_API_KEY` | If OpenAI | OpenAI API key |
+| `ANTHROPIC_API_KEY` | If Anthropic | Anthropic API key |
+| `JWT_SECRET` | Yes | Secret for signing JWTs (min 32 chars in production) |
+| `DATABASE_URL` | Yes* | PostgreSQL connection string (*set automatically in Docker) |
+| `REDIS_URL` | No | Redis URL (default: `redis://localhost:6379/0`) |
+| `PORT` | No | Server port (default: `8000`) |
+| `API_PREFIX` | No | API path prefix (default: `/api`) |
+| `CORS_ORIGINS` | No | Comma-separated allowed origins |
+| `JWT_EXPIRES_IN_SECONDS` | No | Token expiry (default: 604800 = 7 days) |
+| `GEMINI_MODEL` | No | Gemini model (default: `gemini-2.0-flash`) |
+| `OPENAI_MODEL` | No | OpenAI model (default: `gpt-4-turbo-preview`) |
+| `ANTHROPIC_MODEL` | No | Anthropic model (default: `claude-3-opus-20240229`) |
+| **Pinecone (RAG)** | | |
+| `PINECONE_API_KEY` | For RAG | Enables RAG CV parsing and candidate chat with citations |
+| `PINECONE_INDEX_NAME` | No | Index name (default: `cv-chunks`) |
+| `PINECONE_ENVIRONMENT` | No | e.g. `us-east-1` |
+| `EMBEDDING_MODEL` | No | e.g. `text-embedding-004` (Gemini) or `text-embedding-3-small` (OpenAI) |
+| `EMBEDDING_DIMENSION` | No | Must match index (default: `512`) |
+| **Email** | | |
+| `EMAIL_HOST` | No | SMTP host (e.g. `smtp.gmail.com`) |
+| `EMAIL_PORT` | No | SMTP port (e.g. `587`) |
+| `EMAIL_USER` | No | SMTP username |
+| `EMAIL_PASS` | No | SMTP password / app password |
+| `EMAIL_FROM` | No | From address for outgoing emails |
+| `HIRING_MANAGER` | No | Display name (default: `Hiring Manager`) |
+| **Other** | | |
+| `ENVIRONMENT` | No | `development` or `production` |
+| `LOG_LEVEL` | No | e.g. `INFO`, `DEBUG` |
 
-# Authentication
-JWT_SECRET=your-32-char-secret   # Required for auth
+### Frontend environment variables
 
-# Database (auto-configured in Docker)
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hr_autopilot
+Create `frontend/.env.local`:
 
-# Optional
-REDIS_URL=redis://localhost:6379/0
-SMTP_HOST=smtp.gmail.com         # For sending emails
-SMTP_PORT=587
-SMTP_USER=your_email
-SMTP_PASS=your_app_password
-```
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Yes | Backend API base URL (e.g. `http://localhost:8000`) |
+
+For Docker, the frontend receives the API URL via build args; for local dev, set `NEXT_PUBLIC_API_URL` in `.env.local`.
 
 ---
 
@@ -192,6 +222,19 @@ SMTP_PASS=your_app_password
 | `/api/evaluations/:id/decision` | PATCH | Set final decision |
 | `/api/evaluations/:id/email-draft` | POST | Generate email |
 | `/api/evaluations/:id/send-email` | POST | Send email to candidate |
+
+### Candidate chat (RAG-aware)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/candidates/:candidateId/chat` | POST | Send message, get answer (body: `{ question, conversation_history? }`) |
+| `/api/candidates/:candidateId/chat/stream` | POST | Stream answer via SSE (same body) |
+| `/api/candidates/:candidateId/chat/suggestions` | GET | Get suggested questions for the candidate |
+
+### Audit
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/candidates/:candidateId/timeline` | GET | Audit timeline for a candidate |
+| `/api/jobs/:jobId/audit-logs` | GET | Audit logs for a job |
 
 ---
 
@@ -261,6 +304,37 @@ The AI evaluation produces a comprehensive assessment:
   recommended_interview_questions: [...]
 }
 ```
+
+---
+
+## Troubleshooting
+
+| Issue | What to check |
+|-------|----------------|
+| **"OPENAI_API_KEY / GEMINI_API_KEY not set"** | Set the API key for your chosen `LLM_PROVIDER` in `backend/.env`. |
+| **"PINECONE_API_KEY is required"** | RAG features (CV chunk storage, candidate chat with citations) need Pinecone. Either set `PINECONE_API_KEY` and create an index with the same dimension as `EMBEDDING_DIMENSION` (default 512), or ensure the code path does not require Pinecone. |
+| **Pinecone index not found** | Create the index in the [Pinecone console](https://app.pinecone.io) with dimension `512` (or your `EMBEDDING_DIMENSION`), metric `cosine`. Name must match `PINECONE_INDEX_NAME`. |
+| **CV parsing fails or returns "Error"** | Check PDF is valid and not scanned/image-only. Check LLM API key and rate limits. |
+| **Email not sending** | Set `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`. For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833). |
+| **CORS errors in browser** | Add your frontend origin to `CORS_ORIGINS` in `backend/.env` (comma-separated). |
+| **401 on API calls** | Ensure the frontend sends `Authorization: Bearer <token>` and the token is valid. Log in again if expired. |
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and how to submit changes.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | This file – overview, setup, API, config |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to run locally, code style, PR process |
+| [backend/README.md](backend/README.md) | Backend scripts, env, directory structure |
+| [frontend/README.md](frontend/README.md) | Frontend scripts, env, API usage |
+
+Key backend modules are documented with JSDoc: `config.ts`, `database.ts`, `index.ts`, `middleware/auth.ts`, `prompts/registry.ts`, and services under `backend/src/services/` (e.g. `llmClient.ts`, `candidateService.ts`, `evaluationService.ts`, `vectorStoreService.ts`, `embeddingService.ts`). Frontend: `lib/api.ts`, `contexts/auth-context.tsx`.
 
 ---
 

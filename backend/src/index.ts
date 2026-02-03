@@ -1,3 +1,8 @@
+/**
+ * HR Autopilot API entry point.
+ * Mounts auth, jobs, candidates, evaluations, audit, and chat routes under API_PREFIX.
+ * Uses CORS and request logging; verifies email config on startup.
+ */
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";

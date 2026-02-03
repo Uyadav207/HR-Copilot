@@ -1,3 +1,8 @@
+/**
+ * JWT auth middleware for Hono. Reads Authorization: Bearer <token>,
+ * verifies the token via AuthService, and sets c.set("user", user) for downstream routes.
+ * Returns 401 if header is missing or token is invalid/expired.
+ */
 import { Context, Next } from "hono";
 import { AuthService } from "../services/authService.js";
 

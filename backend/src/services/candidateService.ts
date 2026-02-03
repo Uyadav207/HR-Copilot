@@ -1,3 +1,7 @@
+/**
+ * Candidate lifecycle: upload PDFs, parse CVs (with optional RAG), run evaluations,
+ * store/retrieve PDFs, and manage audit logs. Multi-tenant via job ownership.
+ */
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { db } from "../database.js";
 import { candidates, type Candidate, type NewCandidate, type CandidateStatus } from "../models/candidate.js";
@@ -22,6 +26,7 @@ export class CandidateService {
     this.storageService = new StorageService();
   }
 
+  /** Uploads PDFs for a job: stores files, extracts text, creates candidate records. Parsing is queued separately via parseCvBackground. */
   async uploadCandidates(
     userId: string,
     jobId: string,

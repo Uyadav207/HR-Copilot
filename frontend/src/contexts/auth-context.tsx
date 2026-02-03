@@ -1,5 +1,10 @@
 'use client'
 
+/**
+ * Auth context: login, signup, logout, and current user/token state.
+ * Token is stored in localStorage and in a cookie for middleware. On mount,
+ * a stored token is verified via /api/auth/me; invalid tokens are cleared.
+ */
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { apiRequest } from '@/lib/api'
 

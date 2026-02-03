@@ -1,3 +1,7 @@
+/**
+ * AI evaluation lifecycle: run evaluations (direct or RAG), persist results,
+ * update decisions, generate and send email drafts. Uses LLMClient for all LLM calls.
+ */
 import { eq, desc, and } from "drizzle-orm";
 import { db } from "../database.js";
 import {
@@ -17,6 +21,7 @@ import { randomUUID } from "crypto";
 import { logger } from "../utils/logger.js";
 
 export class EvaluationService {
+  /** Runs AI evaluation for a candidate (direct enhanced path). Returns existing evaluation unless force is true or it is incomplete. */
   async evaluateCandidate(
     candidateId: string,
     opts: { force?: boolean } = {}

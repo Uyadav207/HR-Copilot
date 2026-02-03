@@ -1,3 +1,7 @@
+/**
+ * Job CRUD and blueprint generation. Creates jobs, parses raw JD to blueprint via LLM,
+ * and lists jobs with candidate counts and evaluation stats.
+ */
 import { eq, desc, inArray, and } from "drizzle-orm";
 import { db } from "../database.js";
 import { jobs, type Job, type NewJob } from "../models/job.js";
@@ -11,6 +15,7 @@ import { settings } from "../config.js";
 import { randomUUID } from "crypto";
 
 export class JobService {
+  /** Creates a job and parses rawDescription to a structured blueprint via LLM. */
   async createJob(userId: string, jobData: { title: string; rawDescription: string }): Promise<Job> {
     const newJob: NewJob = {
       id: randomUUID(),

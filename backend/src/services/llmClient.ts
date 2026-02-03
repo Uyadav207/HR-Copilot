@@ -1,3 +1,7 @@
+/**
+ * Multi-provider LLM client for job blueprint parsing, CV-to-profile extraction,
+ * evaluations, and email generation. Supports OpenAI, Anthropic, and Gemini.
+ */
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
@@ -12,6 +16,7 @@ export class LLMClient {
   private model: string;
   private provider: "openai" | "anthropic" | "gemini";
 
+  /** Initializes the client for the provider set in config (OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY). */
   constructor() {
     if (settings.llmProvider === "openai") {
       if (!settings.openaiApiKey) {
@@ -81,6 +86,7 @@ export class LLMClient {
     throw new Error(`Unsupported provider: ${this.provider}`);
   }
 
+  /** Parses a job description string into a structured blueprint (skills, experience, responsibilities) via LLM. */
   async parseJdToBlueprint(jobDescription: string): Promise<Record<string, any>> {
     const { getCurrentPrompt } = await import("../prompts/registry.js");
     const promptTemplate = getCurrentPrompt("jd_to_blueprint");
@@ -93,6 +99,7 @@ export class LLMClient {
     return blueprintDict;
   }
 
+  /** Parses raw CV text into a structured candidate profile (skills, experience, education) via LLM. */
   async parseCvToProfile(cvText: string): Promise<Record<string, any>> {
     const { getCurrentPrompt } = await import("../prompts/registry.js");
     const promptTemplate = getCurrentPrompt("cv_to_profile");
@@ -105,8 +112,8 @@ export class LLMClient {
   }
 
   /**
-   * Parse CV to profile using RAG (Retrieval-Augmented Generation)
-   * Retrieves relevant chunks from Pinecone and requires citations for all claims
+   * Parses CV to profile using RAG: uses retrieved chunks for context and requires citations.
+   * Caller must provide chunks from VectorStoreService.searchRelevantChunks or similar.
    */
   async parseCvToProfileWithRAG(
     candidateId: string,
@@ -319,6 +326,11 @@ export class LLMClient {
     return evaluationDict;
   }
 
+  /**
+   * Generates an email draft (invite, reject, or hold) using prompt templates and the given context.
+   * @param emailType - One of "invite", "reject", "hold"
+   * @returns Object with subject and body (or similar keys from the prompt output).
+   */
   async generateEmail(
     emailType: string,
     jobTitle: string,
@@ -371,6 +383,7 @@ export class LLMClient {
     return emailDict;
   }
 
+  /** Generates a job description from a conversational message and optional history/title. */
   async generateJobDescription(
     message: string,
     conversationHistory: Array<{ role: string; content: string }> = [],
