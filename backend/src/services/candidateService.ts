@@ -8,12 +8,12 @@ import { PDFParser } from "./pdfParser.js";
 import { LLMClient } from "./llmClient.js";
 import { PROMPT_VERSION } from "../prompts/registry.js";
 import { settings } from "../config.js";
-import { evaluations } from "../models/evaluation.js";
 import { emailDrafts } from "../models/emailDraft.js";
 import { randomUUID } from "crypto";
 import { CVChunkingService } from "./cvChunkingService.js";
-import { VectorStoreService } from "./vectorStoreService.js";
+import { VectorStoreService, type RetrievedChunk } from "./vectorStoreService.js";
 import { StorageService } from "./storageService.js";
+import { logger } from "../utils/logger.js";
 
 export class CandidateService {
   private storageService: StorageService;
@@ -46,9 +46,9 @@ export class CandidateService {
       // Store PDF file
       try {
         await this.storageService.storePDF(candidateId, file.filename, file.content);
-        console.log(`✅ Stored PDF for candidate ${candidateId}: ${file.filename}`);
+        logger.info("CandidateService", `Stored PDF for candidate ${candidateId}: ${file.filename}`);
       } catch (error) {
-        console.error(`❌ Failed to store PDF for candidate ${candidateId}:`, error);
+        logger.error("CandidateService", `Failed to store PDF for candidate ${candidateId}`, error);
         // Continue anyway - we'll still create the candidate record
       }
 
@@ -107,7 +107,7 @@ export class CandidateService {
 
   async parseCvBackground(userId: string, candidateId: string): Promise<void> {
     try {
-      console.log(`🔄 [Background] Starting CV parsing for candidate ${candidateId}...`);
+      logger.info("CandidateService", `[Background] Starting CV parsing for candidate ${candidateId}...`);
       
       // Verify candidate belongs to user
       const [result] = await db
@@ -117,90 +117,83 @@ export class CandidateService {
         .where(and(eq(candidates.id, candidateId), eq(jobs.userId, userId)));
       
       if (!result) {
-        console.log(`❌ [Background] Candidate ${candidateId} not found or doesn't belong to user`);
+        logger.warn("CandidateService", `[Background] Candidate ${candidateId} not found or doesn't belong to user`);
         return;
       }
       
       const candidate = result.candidate;
 
       if (candidate.profile) {
-        console.log(`✅ [Background] Candidate ${candidateId} already has profile, skipping`);
+        logger.info("CandidateService", `[Background] Candidate ${candidateId} already has profile, skipping`);
         return;
       }
 
-      console.log(`🔄 [Background] Candidate found, checking API keys...`);
+      logger.info("CandidateService", `[Background] Candidate found, checking API keys...`);
 
       // Check if API keys are configured
       if (settings.llmProvider === "openai" && !settings.openaiApiKey) {
         const error = "OPENAI_API_KEY not configured in .env file";
-        console.error(`❌ [Background] ${error}`);
+        logger.error("CandidateService", "[Background] OPENAI_API_KEY not configured", error);
         await this.createAuditLog(candidateId, "cv_parse_failed", { error });
         throw new Error(error);
       } else if (settings.llmProvider === "anthropic" && !settings.anthropicApiKey) {
         const error = "ANTHROPIC_API_KEY not configured in .env file";
-        console.error(`❌ [Background] ${error}`);
+        logger.error("CandidateService", "[Background]", error);
         await this.createAuditLog(candidateId, "cv_parse_failed", { error });
         throw new Error(error);
       } else if (settings.llmProvider === "gemini" && !settings.geminiApiKey) {
         const error = "GEMINI_API_KEY not configured in .env file";
-        console.error(`❌ [Background] ${error}`);
+        logger.error("CandidateService", "[Background]", error);
         await this.createAuditLog(candidateId, "cv_parse_failed", { error });
         throw new Error(error);
       }
 
-      console.log(`🔄 [Background] API keys configured, starting RAG pipeline...`);
-      
-      // Step 1: Chunk the CV
-      console.log(`🔄 [Background] Chunking CV text (${candidate.cvRawText.length} chars)...`);
+      logger.info("CandidateService", "[Background] API keys configured, starting RAG pipeline...");
+
       const chunkingService = new CVChunkingService();
+      logger.info("CandidateService", `[Background] Chunking CV text (${candidate.cvRawText.length} chars)...`);
       const chunks = chunkingService.chunkCV(candidate.cvRawText, candidateId);
-      console.log(`✅ [Background] Created ${chunks.length} chunks`);
+      logger.info("CandidateService", `[Background] Created ${chunks.length} chunks`);
 
       // Step 2: Embed and store chunks in Pinecone
       let vectorStore: VectorStoreService | null = null;
       try {
         if (settings.pineconeApiKey) {
-          console.log(`🔄 [Background] Embedding and storing chunks in Pinecone...`);
+          logger.info("CandidateService", "[Background] Embedding and storing chunks in Pinecone...");
           vectorStore = new VectorStoreService();
           await vectorStore.upsertChunks(candidateId, chunks);
-          console.log(`✅ [Background] Chunks stored in Pinecone`);
+          logger.info("CandidateService", "[Background] Chunks stored in Pinecone");
         } else {
-          console.warn(`⚠️ [Background] PINECONE_API_KEY not configured, skipping vector storage`);
+          logger.warn("CandidateService", "[Background] PINECONE_API_KEY not configured, skipping vector storage");
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error(`❌ [Background] Error storing chunks in Pinecone:`, errorMsg);
-        
-        // If index doesn't exist, provide helpful message
+        logger.error("CandidateService", "[Background] Error storing chunks in Pinecone", errorMsg);
         if (errorMsg.includes("not found") || errorMsg.includes("404")) {
-          console.error(`\n⚠️ IMPORTANT: Pinecone index "${settings.pineconeIndexName}" does not exist!`);
-          console.error(`   Please create it in Pinecone dashboard with:`);
-          console.error(`   - Name: ${settings.pineconeIndexName}`);
-          console.error(`   - Dimension: ${settings.embeddingDimension}`);
-          console.error(`   - Metric: cosine (recommended) or euclidean\n`);
+          logger.warn(
+            "CandidateService",
+            `Pinecone index "${settings.pineconeIndexName}" may not exist. Name: ${settings.pineconeIndexName}, Dimension: ${settings.embeddingDimension}, Metric: cosine`
+          );
         }
         
         // Continue with parsing even if Pinecone fails (graceful degradation)
         vectorStore = null;
       }
 
-      // Step 3: Retrieve relevant chunks for parsing
-      console.log(`🔄 [Background] Retrieving relevant chunks for parsing...`);
-      let retrievedChunks: any[] = [];
-      
+      logger.info("CandidateService", "[Background] Retrieving relevant chunks for parsing...");
+      let retrievedChunks: RetrievedChunk[] = [];
+
       if (vectorStore) {
         try {
-          // Retrieve chunks for different aspects
-          // Get general chunks for overall parsing
           const generalChunks = await vectorStore.searchRelevantChunks(
             candidateId,
             "skills experience education certifications work history professional background",
-            10 // Get top 10 chunks for comprehensive coverage
+            10
           );
           retrievedChunks = generalChunks;
-          console.log(`✅ [Background] Retrieved ${retrievedChunks.length} relevant chunks`);
+          logger.info("CandidateService", `[Background] Retrieved ${retrievedChunks.length} relevant chunks`);
         } catch (error) {
-          console.error(`❌ [Background] Error retrieving chunks:`, error);
+          logger.error("CandidateService", "[Background] Error retrieving chunks", error);
           // Fallback: use first few chunks if retrieval fails
           retrievedChunks = chunks.slice(0, 5).map((chunk, idx) => ({
             chunkIndex: chunk.chunkIndex,
@@ -211,8 +204,7 @@ export class CandidateService {
           }));
         }
       } else {
-        // No Pinecone: use chunks directly (fallback)
-        console.log(`⚠️ [Background] Using chunks directly (no Pinecone)`);
+        logger.warn("CandidateService", "[Background] Using chunks directly (no Pinecone)");
         retrievedChunks = chunks.slice(0, 10).map((chunk) => ({
           chunkIndex: chunk.chunkIndex,
           text: chunk.text,
@@ -222,15 +214,14 @@ export class CandidateService {
         }));
       }
 
-      // Step 4: Parse with RAG
-      console.log(`🔄 [Background] Parsing CV with RAG (${retrievedChunks.length} chunks)...`);
+      logger.info("CandidateService", `[Background] Parsing CV with RAG (${retrievedChunks.length} chunks)...`);
       const llmClient = new LLMClient();
       const profile = await llmClient.parseCvToProfileWithRAG(
         candidateId,
         candidate.cvRawText,
         retrievedChunks
       );
-      console.log(`✅ [Background] LLM response received, updating database...`);
+      logger.info("CandidateService", "[Background] LLM response received, updating database...");
 
       await db
         .update(candidates)
@@ -248,19 +239,17 @@ export class CandidateService {
         email: (profile.email as string) || null,
       });
 
-      console.log(`✅ [Background] Successfully parsed CV for candidate ${candidateId} - ${profile.name || "Unknown"}`);
+      logger.info("CandidateService", `[Background] Successfully parsed CV for candidate ${candidateId} - ${profile.name || "Unknown"}`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       const errorTrace = error instanceof Error ? error.stack : "";
-      console.error(`❌ [Background] Error parsing CV for candidate ${candidateId}: ${errorMsg}`);
-      if (errorTrace) {
-        console.error(`❌ [Background] Stack trace: ${errorTrace}`);
-      }
+      logger.error("CandidateService", `[Background] Error parsing CV for candidate ${candidateId}`, errorMsg);
+      if (errorTrace) logger.debug("CandidateService", "[Background] Stack trace", errorTrace);
 
       try {
         await this.createAuditLog(candidateId, "cv_parse_failed", { error: errorMsg });
       } catch (commitError) {
-        console.error(`❌ [Background] Failed to log error: ${commitError}`);
+        logger.error("CandidateService", "[Background] Failed to write audit log", commitError);
       }
       // Re-throw to ensure error is propagated
       throw error;
@@ -380,7 +369,7 @@ export class CandidateService {
       try {
         await this.storageService.deletePDF(candidateId, candidate.cvFilename);
       } catch (error) {
-        console.error(`Error deleting PDF for candidate ${candidateId}:`, error);
+        logger.error("CandidateService", `Error deleting PDF for candidate ${candidateId}`, error);
         // Continue with candidate deletion even if PDF deletion fails
       }
     }
@@ -391,7 +380,7 @@ export class CandidateService {
         const vectorStore = new VectorStoreService();
         await vectorStore.deleteCandidateChunks(candidateId);
       } catch (error) {
-        console.error(`Error deleting chunks for candidate ${candidateId}:`, error);
+        logger.error("CandidateService", `Error deleting chunks for candidate ${candidateId}`, error);
         // Continue with candidate deletion even if chunk deletion fails
       }
     }
@@ -423,7 +412,7 @@ export class CandidateService {
       
       return true;
     } catch (error) {
-      console.error(`Error deleting candidate ${candidateId}:`, error);
+      logger.error("CandidateService", `Error deleting candidate ${candidateId}`, error);
       throw error;
     }
   }

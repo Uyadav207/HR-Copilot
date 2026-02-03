@@ -31,6 +31,10 @@ export interface Settings {
   environment: string;
   logLevel: string;
   apiPrefix: string;
+
+  // Auth
+  jwtSecret: string;
+  jwtExpiresInSeconds: number;
   
   // CORS
   corsOrigins: string[];
@@ -73,6 +77,8 @@ export const settings: Settings = {
   environment: process.env.ENVIRONMENT || "development",
   logLevel: process.env.LOG_LEVEL || "INFO",
   apiPrefix: process.env.API_PREFIX || "/api",
+  jwtSecret: process.env.JWT_SECRET || "change-me-in-production",
+  jwtExpiresInSeconds: parseInt(process.env.JWT_EXPIRES_IN_SECONDS || "604800", 10), // 7 days default
   corsOrigins: parseCorsOrigins(process.env.CORS_ORIGINS || "http://localhost:3000,http://localhost:3001"),
   emailHost: process.env.EMAIL_HOST || "smtp.gmail.com",
   emailPort: parseInt(process.env.EMAIL_PORT || "587"),

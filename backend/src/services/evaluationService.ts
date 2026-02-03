@@ -14,6 +14,7 @@ import { auditLogs, type NewAuditLog } from "../models/auditLog.js";
 import { LLMClient } from "./llmClient.js";
 import { PROMPT_VERSION } from "../prompts/registry.js";
 import { randomUUID } from "crypto";
+import { logger } from "../utils/logger.js";
 
 export class EvaluationService {
   async evaluateCandidate(
@@ -45,15 +46,15 @@ export class EvaluationService {
       return existing;
     }
 
-    // Run evaluation (DIRECT enhanced, no vector search)
-    console.log(
-      `🔄 [Evaluation] Starting DIRECT enhanced evaluation for candidate ${candidateId}...` +
-        (existing ? " (re-evaluating)" : "")
+    logger.info(
+      "EvaluationService",
+      `[Evaluation] Starting DIRECT enhanced evaluation for candidate ${candidateId}${existing ? " (re-evaluating)" : ""}`
     );
 
     const llmClient = new LLMClient();
     let evaluationData: Record<string, any> | undefined;
-    const maxRetries = 2;
+    const maxRetries = 4; // Allow more retries for rate limits (429/503)
+    const baseDelayMs = 2000;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -63,17 +64,33 @@ export class EvaluationService {
           candidate.cvRawText
         );
         evaluationData = normalizeEvaluationOutput(evaluationData);
-        console.log(`✅ [Evaluation] Direct enhanced evaluation completed`);
+        logger.info("EvaluationService", "[Evaluation] Direct enhanced evaluation completed");
         break;
       } catch (error) {
         const isParseError =
           error instanceof Error &&
           (error.message.includes("parse JSON") || error.message.includes("truncated"));
-        if (attempt < maxRetries && isParseError) {
-          console.warn(`⚠️ [Evaluation] Parse error on attempt ${attempt}, retrying...`);
+        const isRateLimitError = is429Or503(error);
+
+        if (attempt < maxRetries && (isParseError || isRateLimitError)) {
+          if (isRateLimitError) {
+            const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+            logger.warn(
+              "EvaluationService",
+              `[Evaluation] Rate limited (429/503) on attempt ${attempt}, retrying in ${delayMs}ms...`
+            );
+            await sleep(delayMs);
+          } else {
+            logger.warn("EvaluationService", `[Evaluation] Parse error on attempt ${attempt}, retrying...`);
+          }
           continue;
         }
-        console.error(`❌ [Evaluation] Error during evaluation:`, error);
+        logger.error("EvaluationService", "[Evaluation] Error during evaluation", error);
+        if (is429Or503(error)) {
+          throw new Error(
+            "The AI provider is temporarily overloaded (rate limit). Please try again in a minute."
+          );
+        }
         throw new Error(
           `Failed to evaluate candidate: ${error instanceof Error ? error.message : String(error)}`
         );
@@ -184,12 +201,9 @@ export class EvaluationService {
         (errorMessage.includes("column") && errorMessage.includes("enhanced"));
 
       if (isColumnError) {
-        console.warn(
-          `⚠️ [Evaluation] enhanced_data column not found, saving without enhanced fields.`
-        );
-        console.warn(`   Run: bun run db:add-enhanced-column`);
-        console.warn(
-          `   Or: psql $DATABASE_URL -f backend/scripts/add-enhanced-data-column.sql`
+        logger.warn(
+          "EvaluationService",
+          "enhanced_data column not found, saving without enhanced fields. Run: bun run db:add-enhanced-column"
         );
 
         if (existing) {
@@ -215,7 +229,7 @@ export class EvaluationService {
           evaluation = inserted;
         }
       } else {
-        console.error(`❌ [Evaluation] Database error:`, dbError);
+        logger.error("EvaluationService", "Database error", dbError);
         throw dbError;
       }
     }
@@ -456,6 +470,20 @@ export class EvaluationService {
       .limit(1);
     return emailDraft || null;
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function is429Or503(error: unknown): boolean {
+  if (error && typeof error === "object") {
+    const status = (error as { status?: number }).status;
+    if (status === 429 || status === 503) return true;
+    const msg = String((error as Error).message ?? "");
+    if (msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("rate limit")) return true;
+  }
+  return false;
 }
 
 function asArray<T = any>(v: any): T[] {

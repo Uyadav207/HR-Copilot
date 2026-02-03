@@ -2,49 +2,57 @@ import { db } from "../database.js";
 import { users } from "../models/user.js";
 import { eq } from "drizzle-orm";
 import { SignupInput, LoginInput } from "../schemas/auth.js";
+import { settings } from "../config.js";
+import { SignJWT, jwtVerify } from "jose";
 
-// Simple password hashing using Bun's built-in crypto
+const JWT_ALG = "HS256";
+
+/** Hash password with bcrypt (Bun built-in). */
 async function hashPassword(password: string): Promise<string> {
+  return Bun.password.hash(password, {
+    algorithm: "bcrypt",
+    cost: 10,
+  });
+}
+
+/** Verify password. Supports both bcrypt (new) and legacy SHA-256 hashes for migration. */
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  // New bcrypt hashes start with $2
+  if (storedHash.startsWith("$2")) {
+    return Bun.password.verify(password, storedHash, "bcrypt");
+  }
+  // Legacy SHA-256 (no salt) - verify and caller can rehash on next login
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  const hex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex === storedHash;
 }
 
-async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-  const hashed = await hashPassword(password);
-  return hashed === hashedPassword;
+function getJwtSecret(): Uint8Array {
+  const secret = settings.jwtSecret;
+  if (!secret || secret === "change-me-in-production") {
+    console.warn("⚠️ Using default JWT_SECRET; set JWT_SECRET in production.");
+  }
+  return new TextEncoder().encode(secret);
 }
 
-// Simple JWT implementation (for production, use a proper JWT library)
-function generateToken(userId: string, email: string): string {
-  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = btoa(JSON.stringify({
-    userId,
-    email,
-    exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
-  }));
-  const signature = btoa(`${header}.${payload}.secret`); // In production, use a proper secret
-  return `${header}.${payload}.${signature}`;
+function generateToken(userId: string, email: string): Promise<string> {
+  return new SignJWT({ userId, email })
+    .setProtectedHeader({ alg: JWT_ALG })
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(Date.now() / 1000) + settings.jwtExpiresInSeconds)
+    .sign(getJwtSecret());
 }
 
-function verifyToken(token: string): { userId: string; email: string } | null {
+async function verifyToken(token: string): Promise<{ userId: string; email: string } | null> {
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    
-    const payload = JSON.parse(atob(parts[1]));
-    
-    // Check expiration
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-      return null;
-    }
-    
-    return {
-      userId: payload.userId,
-      email: payload.email,
-    };
+    const { payload } = await jwtVerify(token, getJwtSecret());
+    const userId = payload.userId as string;
+    const email = payload.email as string;
+    if (!userId || !email) return null;
+    return { userId, email };
   } catch {
     return null;
   }
@@ -52,7 +60,6 @@ function verifyToken(token: string): { userId: string; email: string } | null {
 
 export class AuthService {
   async signup(data: SignupInput) {
-    // Check if user already exists
     const existingUser = await db
       .select()
       .from(users)
@@ -63,10 +70,8 @@ export class AuthService {
       throw new Error("User with this email already exists");
     }
 
-    // Hash password
     const hashedPassword = await hashPassword(data.password);
 
-    // Create user
     const [user] = await db
       .insert(users)
       .values({
@@ -78,8 +83,7 @@ export class AuthService {
       })
       .returning();
 
-    // Generate token
-    const token = generateToken(user.id, user.email);
+    const token = await generateToken(user.id, user.email);
 
     return {
       user: {
@@ -95,7 +99,6 @@ export class AuthService {
   }
 
   async login(data: LoginInput) {
-    // Find user
     const [user] = await db
       .select()
       .from(users)
@@ -106,14 +109,18 @@ export class AuthService {
       throw new Error("Invalid email or password");
     }
 
-    // Verify password
     const isValid = await verifyPassword(data.password, user.password);
     if (!isValid) {
       throw new Error("Invalid email or password");
     }
 
-    // Generate token
-    const token = generateToken(user.id, user.email);
+    // Optional: upgrade legacy SHA-256 hash to bcrypt on next login
+    if (!user.password.startsWith("$2")) {
+      const newHash = await hashPassword(data.password);
+      await db.update(users).set({ password: newHash }).where(eq(users.id, user.id));
+    }
+
+    const token = await generateToken(user.id, user.email);
 
     return {
       user: {
@@ -129,12 +136,11 @@ export class AuthService {
   }
 
   async verifyToken(token: string) {
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
     if (!decoded) {
       return null;
     }
 
-    // Verify user still exists
     const [user] = await db
       .select()
       .from(users)
@@ -154,4 +160,3 @@ export class AuthService {
     };
   }
 }
-

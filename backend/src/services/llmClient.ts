@@ -2,8 +2,10 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { settings } from "../config.js";
-import type { JobBlueprint, CandidateProfile, CandidateEvaluation, EmailDraft } from "../schemas/ai.js";
 import type { RetrievedChunk } from "./vectorStoreService.js";
+import { extractJsonFromLLM } from "../utils/jsonRepair.js";
+import { LLM_MAX_TOKENS, MAX_CV_CHARS_FOR_PROMPT } from "../constants/llm.js";
+import { logger } from "../utils/logger.js";
 
 export class LLMClient {
   private client: OpenAI | Anthropic | GoogleGenAI;
@@ -43,7 +45,7 @@ export class LLMClient {
       model: this.model,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
-      max_tokens: 8192, // Ensure long evaluation outputs aren't truncated
+      max_tokens: LLM_MAX_TOKENS,
     });
     return response.choices[0]?.message?.content || "";
   }
@@ -52,7 +54,7 @@ export class LLMClient {
     const client = this.client as Anthropic;
     const response = await client.messages.create({
       model: this.model,
-      max_tokens: 8192, // Ensure long evaluation outputs aren't truncated
+      max_tokens: LLM_MAX_TOKENS,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
     });
@@ -66,7 +68,7 @@ export class LLMClient {
       contents: prompt,
       config: {
         temperature: 0.3,
-        maxOutputTokens: 8192, // Ensure long evaluation outputs aren't truncated
+        maxOutputTokens: LLM_MAX_TOKENS,
       },
     });
     return response.text ?? "";
@@ -79,213 +81,6 @@ export class LLMClient {
     throw new Error(`Unsupported provider: ${this.provider}`);
   }
 
-  private extractJson(text: string): Record<string, any> {
-    // Remove markdown code blocks if present
-    let cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-
-    const tryParse = (str: string): Record<string, any> | null => {
-      try {
-        return JSON.parse(str) as Record<string, any>;
-      } catch {
-        return null;
-      }
-    };
-
-    let result = tryParse(cleaned);
-    if (result) return result;
-
-    // Try to find JSON object in the text
-    const match = cleaned.match(/\{[\s\S]*/);
-    if (match) {
-      let candidate = match[0];
-      result = tryParse(candidate);
-      if (result) return result;
-
-      // Attempt repair for truncated JSON (common when LLM output is cut off)
-      const repaired = this.repairTruncatedJson(candidate);
-      result = tryParse(repaired);
-      if (result) return result;
-
-      // Try aggressive repair: fix common issues before closing brackets
-      const aggressiveRepair = this.aggressiveJsonRepair(candidate);
-      result = tryParse(aggressiveRepair);
-      if (result) return result;
-
-      // Fallback: try truncating from the end to find last valid JSON boundary
-      // Look for various field endings
-      const endings = ['",', '"},', '"]', '}]', ']}', 'true,', 'false,', 'null,'];
-      for (const ending of endings) {
-        const lastPos = candidate.lastIndexOf(ending);
-        if (lastPos > 0) {
-          for (let i = 0; i < 10; i++) {
-            const truncated = candidate.slice(0, lastPos + ending.length - 1 - i).replace(/[,:\s]+$/, "");
-            const closed = this.closeUnclosedBrackets(truncated);
-            result = tryParse(closed);
-            if (result) return result;
-          }
-        }
-      }
-
-      // Last resort: find the deepest valid JSON object
-      result = this.extractPartialJson(candidate);
-      if (result) return result;
-    }
-
-    throw new Error(`Failed to parse JSON from LLM response. Output may be truncated or malformed.`);
-  }
-
-  /** Aggressively repair JSON by fixing common truncation issues */
-  private aggressiveJsonRepair(str: string): string {
-    let fixed = str;
-    
-    // Remove trailing incomplete key-value pairs (e.g., `"key":` without value)
-    fixed = fixed.replace(/,\s*"[^"]*":\s*$/g, "");
-    fixed = fixed.replace(/,\s*"[^"]*"\s*$/g, "");
-    
-    // Fix trailing incomplete strings (e.g., `"value` without closing quote)
-    // Count quotes to see if we have an odd number
-    const quoteCount = (fixed.match(/(?<!\\)"/g) || []).length;
-    if (quoteCount % 2 !== 0) {
-      // Find the last quote and close the string
-      const lastQuote = fixed.lastIndexOf('"');
-      if (lastQuote > 0) {
-        // Check if it's the start of a value
-        const beforeQuote = fixed.slice(0, lastQuote).trim();
-        if (beforeQuote.endsWith(":") || beforeQuote.endsWith("[") || beforeQuote.endsWith(",")) {
-          fixed = fixed + '"';
-        }
-      }
-    }
-    
-    // Remove trailing commas before closing brackets
-    fixed = fixed.replace(/,(\s*[\]}])/g, "$1");
-    
-    // Remove trailing colons
-    fixed = fixed.replace(/:\s*$/g, ': null');
-    
-    // Remove dangling commas at the end
-    fixed = fixed.replace(/,\s*$/g, "");
-    
-    return this.repairTruncatedJson(fixed);
-  }
-
-  /** Try to extract a partial but valid JSON object from the start */
-  private extractPartialJson(str: string): Record<string, any> | null {
-    const tryParse = (s: string): Record<string, any> | null => {
-      try {
-        return JSON.parse(s) as Record<string, any>;
-      } catch {
-        return null;
-      }
-    };
-
-    // Try to find balanced braces from the start
-    let depth = 0;
-    let arrayDepth = 0;
-    let inString = false;
-    let escape = false;
-    let lastValidEnd = -1;
-
-    for (let i = 0; i < str.length; i++) {
-      const c = str[i];
-      
-      if (escape) {
-        escape = false;
-        continue;
-      }
-      
-      if (inString) {
-        if (c === "\\") escape = true;
-        else if (c === '"') inString = false;
-        continue;
-      }
-      
-      if (c === '"') {
-        inString = true;
-        continue;
-      }
-      
-      if (c === "{") depth++;
-      else if (c === "}") {
-        depth--;
-        if (depth === 0 && arrayDepth === 0) {
-          lastValidEnd = i;
-        }
-      } else if (c === "[") arrayDepth++;
-      else if (c === "]") arrayDepth--;
-    }
-
-    // If we found a valid end point, try parsing up to there
-    if (lastValidEnd > 0) {
-      const partial = str.slice(0, lastValidEnd + 1);
-      const result = tryParse(partial);
-      if (result) return result;
-    }
-
-    // Try progressively shorter substrings, looking for valid JSON
-    for (let len = str.length; len > 100; len -= 50) {
-      const substring = str.slice(0, len);
-      const repaired = this.aggressiveJsonRepair(substring);
-      const result = tryParse(repaired);
-      if (result && Object.keys(result).length > 0) {
-        console.warn(`⚠️ [LLMClient] Recovered partial JSON (${Object.keys(result).length} keys)`);
-        return result;
-      }
-    }
-
-    return null;
-  }
-
-  /** Attempt to repair truncated JSON by closing unterminated strings and brackets */
-  private repairTruncatedJson(str: string): string {
-    let inString = false;
-    let stringChar = '"';
-    let escape = false;
-    let depth = 0;
-    let arrayDepth = 0;
-
-    for (let i = 0; i < str.length; i++) {
-      const c = str[i];
-      if (escape) {
-        escape = false;
-        continue;
-      }
-      if (inString) {
-        if (c === "\\") escape = true;
-        else if (c === stringChar) inString = false;
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        inString = true;
-        stringChar = c;
-        continue;
-      }
-      if (c === "{") depth++;
-      else if (c === "}") depth--;
-      else if (c === "[") arrayDepth++;
-      else if (c === "]") arrayDepth--;
-    }
-
-    let suffix = "";
-    if (inString) suffix += stringChar;
-    for (let i = 0; i < arrayDepth; i++) suffix += "]";
-    for (let i = 0; i < depth; i++) suffix += "}";
-    return str + suffix;
-  }
-
-  /** Close unclosed brackets by counting braces */
-  private closeUnclosedBrackets(str: string): string {
-    let depth = 0;
-    let arrayDepth = 0;
-    for (const c of str) {
-      if (c === "{") depth++;
-      else if (c === "}") depth--;
-      else if (c === "[") arrayDepth++;
-      else if (c === "]") arrayDepth--;
-    }
-    return str + "]".repeat(Math.max(0, arrayDepth)) + "}".repeat(Math.max(0, depth));
-  }
-
   async parseJdToBlueprint(jobDescription: string): Promise<Record<string, any>> {
     const { getCurrentPrompt } = await import("../prompts/registry.js");
     const promptTemplate = getCurrentPrompt("jd_to_blueprint");
@@ -293,7 +88,7 @@ export class LLMClient {
 
     const response = await this.callLLM(prompt);
 
-    const blueprintDict = this.extractJson(response);
+    const blueprintDict = extractJsonFromLLM(response) as Record<string, unknown>;
     // Basic validation - JobBlueprint schema would be validated at API level
     return blueprintDict;
   }
@@ -305,7 +100,7 @@ export class LLMClient {
 
     const response = await this.callLLM(prompt);
 
-    const profileDict = this.extractJson(response);
+    const profileDict = extractJsonFromLLM(response) as Record<string, unknown>;
     return profileDict;
   }
 
@@ -334,7 +129,7 @@ export class LLMClient {
       promptTemplate = getCurrentPrompt("cv_to_profile_rag");
     } catch (error) {
       // Fallback to regular prompt if RAG prompt not found
-      console.warn("RAG prompt not found, falling back to regular parsing");
+      logger.warn("LLMClient", "RAG prompt not found, falling back to regular parsing");
       return this.parseCvToProfile(cvText);
     }
 
@@ -345,14 +140,12 @@ export class LLMClient {
 
     const response = await this.callLLM(prompt);
 
-    const profileDict = this.extractJson(response);
-    
-    // Validate that skills have citations
+    const profileDict = extractJsonFromLLM(response) as Record<string, unknown>;
+
     if (profileDict.skills && Array.isArray(profileDict.skills)) {
-      profileDict.skills = profileDict.skills.map((skill: any) => {
-        // Ensure citation fields exist
-        if (!skill.chunkId && !skill.chunkIndex) {
-          console.warn(`Skill "${skill.skill}" missing citation - this should not happen with RAG`);
+      profileDict.skills = (profileDict.skills as Array<Record<string, unknown>>).map((skill) => {
+        if (!(skill as Record<string, unknown>).chunkId && !(skill as Record<string, unknown>).chunkIndex) {
+          // RAG should include citations; log if missing
         }
         return skill;
       });
@@ -373,7 +166,7 @@ export class LLMClient {
 
     const response = await this.callLLM(prompt);
 
-    const evaluationDict = this.extractJson(response);
+    const evaluationDict = extractJsonFromLLM(response) as Record<string, unknown>;
     return evaluationDict;
   }
 
@@ -392,18 +185,13 @@ export class LLMClient {
     try {
       promptTemplate = getCurrentPrompt("profile_to_evaluation_direct_enhanced");
     } catch (error) {
-      // Fallback to basic direct evaluation if enhanced prompt isn't available
-      console.warn(
-        "Direct enhanced evaluation prompt not found, falling back to regular evaluation"
-      );
+      logger.warn("LLMClient", "Direct enhanced evaluation prompt not found, falling back to regular evaluation");
       return this.evaluateCandidate(jobBlueprint, candidateProfile);
     }
 
-    // Prevent runaway prompt sizes if CV text is extremely large
-    const MAX_CV_CHARS = 40_000;
     const cvTextForPrompt =
-      typeof cvRawText === "string" && cvRawText.length > MAX_CV_CHARS
-        ? `${cvRawText.slice(0, MAX_CV_CHARS)}\n\n[TRUNCATED: CV text exceeded ${MAX_CV_CHARS} characters]`
+      typeof cvRawText === "string" && cvRawText.length > MAX_CV_CHARS_FOR_PROMPT
+        ? `${cvRawText.slice(0, MAX_CV_CHARS_FOR_PROMPT)}\n\n[TRUNCATED: CV text exceeded ${MAX_CV_CHARS_FOR_PROMPT} characters]`
         : cvRawText || "";
 
     const prompt = promptTemplate
@@ -413,7 +201,7 @@ export class LLMClient {
 
     const response = await this.callLLM(prompt);
 
-    const evaluationDict = this.extractJson(response);
+    const evaluationDict = extractJsonFromLLM(response) as Record<string, unknown>;
     return evaluationDict;
   }
 
@@ -444,7 +232,7 @@ export class LLMClient {
       promptTemplate = getCurrentPrompt("profile_to_evaluation_rag");
     } catch (error) {
       // Fallback to regular evaluation if RAG prompt not found
-      console.warn("RAG evaluation prompt not found, falling back to regular evaluation");
+      logger.warn("LLMClient", "RAG evaluation prompt not found, falling back to regular evaluation");
       return this.evaluateCandidate(jobBlueprint, candidateProfile);
     }
 
@@ -456,15 +244,14 @@ export class LLMClient {
 
     const response = await this.callLLM(prompt);
 
-    const evaluationDict = this.extractJson(response);
-    
-    // Validate that evidence has citations
+    const evaluationDict = extractJsonFromLLM(response) as Record<string, unknown>;
+
     if (evaluationDict.criteria_matches && Array.isArray(evaluationDict.criteria_matches)) {
-      evaluationDict.criteria_matches = evaluationDict.criteria_matches.map((match: any) => {
+      evaluationDict.criteria_matches = (evaluationDict.criteria_matches as Array<Record<string, unknown>>).map((match) => {
         if (match.evidence && Array.isArray(match.evidence)) {
-          match.evidence = match.evidence.map((ev: any) => {
+          match.evidence = (match.evidence as Array<Record<string, unknown>>).map((ev) => {
             if (!ev.chunkId && !ev.chunkIndex) {
-              console.warn(`Evidence for criterion "${match.criterion}" missing citation - this should not happen with RAG`);
+              // RAG should include citations
             }
             return ev;
           });
@@ -502,7 +289,7 @@ export class LLMClient {
       promptTemplate = getCurrentPrompt("profile_to_evaluation_rag_enhanced");
     } catch (error) {
       // Fallback to regular RAG evaluation
-      console.warn("Enhanced RAG evaluation prompt not found, falling back to regular RAG");
+      logger.warn("LLMClient", "Enhanced RAG evaluation prompt not found, falling back to regular RAG");
       return this.evaluateCandidateWithRAG(jobBlueprint, candidateProfile, relevantChunks);
     }
 
@@ -514,17 +301,15 @@ export class LLMClient {
 
     const response = await this.callLLM(prompt);
 
-    const evaluationDict = this.extractJson(response);
-    
-    // Validate citations
+    const evaluationDict = extractJsonFromLLM(response) as Record<string, unknown>;
+
     if (evaluationDict.criteria_matches && Array.isArray(evaluationDict.criteria_matches)) {
-      evaluationDict.criteria_matches = evaluationDict.criteria_matches.map((match: any) => {
+      evaluationDict.criteria_matches = (evaluationDict.criteria_matches as Array<Record<string, unknown>>).map((match) => {
         if (match.evidence && Array.isArray(match.evidence)) {
-          match.evidence = match.evidence.map((ev: any) => {
+          (match.evidence as Array<Record<string, unknown>>).forEach((ev) => {
             if (!ev.chunkId && !ev.chunkIndex) {
-              console.warn(`Evidence for criterion "${match.criterion}" missing citation`);
+              // Citation missing for evidence
             }
-            return ev;
           });
         }
         return match;
@@ -582,7 +367,7 @@ export class LLMClient {
 
     const response = await this.callLLM(prompt);
 
-    const emailDict = this.extractJson(response);
+    const emailDict = extractJsonFromLLM(response) as Record<string, unknown>;
     return emailDict;
   }
 

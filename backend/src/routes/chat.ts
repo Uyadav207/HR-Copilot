@@ -1,23 +1,30 @@
 import { Hono } from "hono";
 import { CandidateChatService } from "../services/candidateChatService.js";
+import { CandidateService } from "../services/candidateService.js";
 import { db } from "../database.js";
-import { candidates } from "../models/candidate.js";
 import { jobs } from "../models/job.js";
 import { eq } from "drizzle-orm";
 import { VectorStoreService } from "../services/vectorStoreService.js";
 import { settings } from "../config.js";
-import OpenAI from "openai";
+import { authMiddleware } from "../middleware/auth.js";
+import type { RetrievedChunk } from "../services/vectorStoreService.js";
+import { logger } from "../utils/logger.js";
 
 const chat = new Hono();
 const chatService = new CandidateChatService();
+const candidateService = new CandidateService();
+
+// Require auth for all chat routes; candidate ownership is checked per handler
+chat.use("*", authMiddleware);
 
 /**
  * POST /api/candidates/:candidateId/chat
  * Send a message to the candidate chat bot
  */
 chat.post("/candidates/:candidateId/chat", async (c) => {
+  const user = c.get("user");
   const candidateId = c.req.param("candidateId");
-  
+
   try {
     const body = await c.req.json();
     const { question, conversation_history = [] } = body;
@@ -26,12 +33,10 @@ chat.post("/candidates/:candidateId/chat", async (c) => {
       return c.json({ error: "question is required and must be a string" }, 400);
     }
 
-    // Get candidate and job data
-    const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
+    const candidate = await candidateService.getCandidate(user.id, candidateId);
     if (!candidate) {
       return c.json({ error: "Candidate not found" }, 404);
     }
-
     if (!candidate.profile) {
       return c.json({ error: "Candidate profile not parsed yet" }, 400);
     }
@@ -41,8 +46,7 @@ chat.post("/candidates/:candidateId/chat", async (c) => {
       return c.json({ error: "Job blueprint not available" }, 400);
     }
 
-    // Get relevant CV chunks
-    let cvChunks: any[] = [];
+    let cvChunks: RetrievedChunk[] = [];
     if (settings.pineconeApiKey) {
       try {
         const vectorStore = new VectorStoreService();
@@ -53,7 +57,7 @@ chat.post("/candidates/:candidateId/chat", async (c) => {
           10
         );
       } catch (error) {
-        console.error("Error retrieving chunks for chat:", error);
+        logger.error("Chat", "Error retrieving chunks for chat", error);
         // Continue without chunks
       }
     }
@@ -74,7 +78,7 @@ chat.post("/candidates/:candidateId/chat", async (c) => {
       question,
     });
   } catch (error) {
-    console.error("Error in chat endpoint:", error);
+    logger.error("Chat", "Error in chat endpoint", error);
     return c.json(
       { error: error instanceof Error ? error.message : "Failed to process chat message" },
       500
@@ -98,7 +102,11 @@ chat.post("/candidates/:candidateId/chat/stream", async (c) => {
   });
 
   const encoder = new TextEncoder();
-  const sendEvent = (controller: ReadableStreamDefaultController, event: string, data: any) => {
+  const sendEvent = (
+    controller: ReadableStreamDefaultController,
+    event: string,
+    data: string | { delta?: string }
+  ) => {
     controller.enqueue(encoder.encode(`event: ${event}\n`));
     controller.enqueue(encoder.encode(`data: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`));
   };
@@ -108,6 +116,7 @@ chat.post("/candidates/:candidateId/chat/stream", async (c) => {
     start(controller) {
       (async () => {
         try {
+          const user = c.get("user");
           const body = await c.req.json();
           const { question, conversation_history = [] } = body;
 
@@ -117,7 +126,7 @@ chat.post("/candidates/:candidateId/chat/stream", async (c) => {
             return;
           }
 
-          const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
+          const candidate = await candidateService.getCandidate(user.id, candidateId);
           if (!candidate) {
             sendEvent(controller, "error", "Candidate not found");
             controller.close();
@@ -136,8 +145,7 @@ chat.post("/candidates/:candidateId/chat/stream", async (c) => {
             return;
           }
 
-          // Retrieve some chunks for grounding (RAG stays for chatbot)
-          let cvChunks: any[] = [];
+          let cvChunks: RetrievedChunk[] = [];
           if (settings.pineconeApiKey) {
             try {
               const vectorStore = new VectorStoreService();
@@ -183,8 +191,8 @@ INSTRUCTIONS:
           }
           messages.push({ role: "user", content: question });
 
-          // Stream with OpenAI if configured
           if (settings.llmProvider === "openai") {
+            const { default: OpenAI } = await import("openai");
             const client = new OpenAI({ apiKey: settings.openaiApiKey });
             const completion = await client.chat.completions.create({
               model: settings.openaiModel,
@@ -261,15 +269,14 @@ INSTRUCTIONS:
  * Get suggested questions for the candidate
  */
 chat.get("/candidates/:candidateId/chat/suggestions", async (c) => {
+  const user = c.get("user");
   const candidateId = c.req.param("candidateId");
 
   try {
-    // Get candidate and job data
-    const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
+    const candidate = await candidateService.getCandidate(user.id, candidateId);
     if (!candidate) {
       return c.json({ error: "Candidate not found" }, 404);
     }
-
     if (!candidate.profile) {
       return c.json({ error: "Candidate profile not parsed yet" }, 400);
     }
@@ -279,8 +286,7 @@ chat.get("/candidates/:candidateId/chat/suggestions", async (c) => {
       return c.json({ error: "Job blueprint not available" }, 400);
     }
 
-    // Get relevant CV chunks
-    let cvChunks: any[] = [];
+    let cvChunks: RetrievedChunk[] = [];
     if (settings.pineconeApiKey) {
       try {
         const vectorStore = new VectorStoreService();
@@ -307,7 +313,7 @@ chat.get("/candidates/:candidateId/chat/suggestions", async (c) => {
 
     return c.json({ questions });
   } catch (error) {
-    console.error("Error getting chat suggestions:", error);
+    logger.error("Chat", "Error getting chat suggestions", error);
     return c.json(
       { error: error instanceof Error ? error.message : "Failed to get suggestions" },
       500
