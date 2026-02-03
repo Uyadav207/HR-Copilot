@@ -12,6 +12,7 @@ import { candidates } from "../models/candidate.js";
 import { evaluations as evaluationsTable } from "../models/evaluation.js";
 import { eq } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth.js";
+import { logger } from "../utils/logger.js";
 
 const evaluations = new Hono();
 const evaluationService = new EvaluationService();
@@ -30,19 +31,9 @@ evaluations.post("/candidates/:candidateId/evaluate", async (c) => {
     }
     return c.json(toSnakeCaseResponse(evaluation), 201);
   } catch (error) {
-    console.error(`❌ [Evaluation Route] Error evaluating candidate ${candidateId}:`, error);
-    if (error instanceof Error) {
-      // Log the full error for debugging
-      console.error(`❌ [Evaluation Route] Error details:`, {
-        message: error.message,
-        stack: error.stack,
-      });
-      return c.json({ 
-        error: error.message,
-        details: error.stack?.split('\n').slice(0, 3).join('\n')
-      }, 400);
-    }
-    return c.json({ error: "Failed to evaluate candidate" }, 500);
+    logger.error("EvaluationRoute", `Error evaluating candidate ${candidateId}`, error);
+    const message = error instanceof Error ? error.message : "Failed to evaluate candidate";
+    return c.json({ error: message }, 400);
   }
 });
 
@@ -70,15 +61,11 @@ evaluations.post(
   "/evaluations/:id/email-draft",
   async (c) => {
     const id = c.req.param("id");
-    console.log(`📧 Generating email draft for evaluation ${id}`);
-    
-    // Parse request body manually to provide better error messages
-    let body: any;
+    let body: Record<string, unknown>;
     try {
-      body = await c.req.json();
-      console.log(`📧 Request body received:`, body);
+      body = (await c.req.json()) as Record<string, unknown>;
     } catch (error) {
-      console.error("❌ Error parsing JSON:", error);
+      logger.error("EvaluationRoute", "Error parsing JSON for email-draft", error);
       return c.json({ 
         error: "Invalid JSON in request body",
         details: error instanceof Error ? error.message : "Request body must be valid JSON"
@@ -108,17 +95,14 @@ evaluations.post(
       }, 400);
     }
 
-    console.log(`✅ Valid email_type: ${emailType}, generating draft...`);
-    
     try {
       const emailDraft = await evaluationService.generateEmailDraft(id, emailType);
       if (!emailDraft) {
         return c.json({ error: "Evaluation not found" }, 404);
       }
-      console.log(`✅ Email draft generated successfully`);
       return c.json(toSnakeCaseResponse(emailDraft), 201);
     } catch (error) {
-      console.error("❌ Error generating email draft:", error);
+      logger.error("EvaluationRoute", "Error generating email draft", error);
       if (error instanceof Error) {
         return c.json({ error: error.message }, 400);
       }
@@ -195,7 +179,7 @@ evaluations.post("/evaluations/:id/send-email", async (c) => {
       email_type: emailType,
     });
   } catch (error) {
-    console.error("Error sending email:", error);
+    logger.error("EvaluationRoute", "Error sending email", error);
     return c.json(
       { error: error instanceof Error ? error.message : "Failed to send email" },
       500

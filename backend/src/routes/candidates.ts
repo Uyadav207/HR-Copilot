@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { CandidateService } from "../services/candidateService.js";
 import { toSnakeCaseResponse } from "../utils/transform.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { logger } from "../utils/logger.js";
 
 const candidates = new Hono();
 const candidateService = new CandidateService();
@@ -38,14 +39,10 @@ candidates.post("/jobs/:jobId/candidates", async (c) => {
       // Run in background without awaiting, with a small delay to ensure DB commit
       setTimeout(() => {
         candidateService.parseCvBackground(user.id, candidate.id).catch((err) => {
-          console.error(`❌ Background CV parsing failed for candidate ${candidate.id}:`, err);
-          if (err instanceof Error) {
-            console.error(`   Error message: ${err.message}`);
-            console.error(`   Stack trace: ${err.stack}`);
-          }
+          logger.error("CandidatesRoute", `Background CV parsing failed for candidate ${candidate.id}`, err);
         });
-      }, 100); // Small delay to ensure DB transaction is committed
-      console.log(`📋 Queued CV parsing for candidate ${candidate.id}`);
+      }, 100);
+      logger.info("CandidatesRoute", `Queued CV parsing for candidate ${candidate.id}`);
     }
   });
 

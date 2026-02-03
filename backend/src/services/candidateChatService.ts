@@ -9,6 +9,7 @@ import { LLMClient } from "./llmClient.js";
 import { VectorStoreService } from "./vectorStoreService.js";
 import { settings } from "../config.js";
 import type { RetrievedChunk } from "./vectorStoreService.js";
+import { logger } from "../utils/logger.js";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -56,7 +57,7 @@ export class CandidateChatService {
         );
         relevantChunks = chunks;
       } catch (error) {
-        console.error("Error retrieving chunks for chat:", error);
+        logger.error("CandidateChatService", "Error retrieving chunks for chat", error);
         // Use existing chunks from context
         relevantChunks = context.cvChunks.slice(0, 5);
       }
@@ -161,7 +162,7 @@ INSTRUCTIONS:
         return response.content[0]?.type === "text" ? response.content[0].text : "I couldn't generate a response.";
       }
     } catch (error) {
-      console.error("Error generating chat response:", error);
+      logger.error("CandidateChatService", "Error generating chat response", error);
       throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : String(error)}`);
     }
   }

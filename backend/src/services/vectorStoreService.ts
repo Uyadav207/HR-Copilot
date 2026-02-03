@@ -94,13 +94,13 @@ export class VectorStoreService {
           id: `chunk-${candidateId}-${chunk.chunkIndex}`,
           values: embedding,
           metadata: {
+            ...chunk.metadata,
             candidateId,
             chunkIndex: chunk.chunkIndex,
             sectionType: chunk.sectionType,
-            text: chunk.text.substring(0, 1000), // Store first 1000 chars in metadata for quick access
+            text: chunk.text.substring(0, 1000),
             startChar: chunk.startChar,
             endChar: chunk.endChar,
-            ...chunk.metadata,
           },
         };
       });

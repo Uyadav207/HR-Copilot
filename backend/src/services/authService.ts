@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { SignupInput, LoginInput } from "../schemas/auth.js";
 import { settings } from "../config.js";
 import { SignJWT, jwtVerify } from "jose";
+import { logger } from "../utils/logger.js";
 
 const JWT_ALG = "HS256";
 
@@ -33,7 +34,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
 function getJwtSecret(): Uint8Array {
   const secret = settings.jwtSecret;
   if (!secret || secret === "change-me-in-production") {
-    console.warn("⚠️ Using default JWT_SECRET; set JWT_SECRET in production.");
+    logger.warn("AuthService", "Using default JWT_SECRET; set JWT_SECRET in production.");
   }
   return new TextEncoder().encode(secret);
 }
