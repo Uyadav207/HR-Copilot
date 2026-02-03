@@ -33,9 +33,14 @@ async function streamChatMessage(
   conversationHistory: ChatMessage[],
   onDelta: (delta: string) => void
 ): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token')
+    if (token) headers['Authorization'] = `Bearer ${token}`
+  }
   const res = await fetch(`${API_URL}/api/candidates/${candidateId}/chat/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ question, conversation_history: conversationHistory }),
   })
   if (!res.ok) {

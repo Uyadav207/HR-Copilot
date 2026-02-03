@@ -72,7 +72,9 @@ export const settings: Settings = {
   pineconeApiKey: process.env.PINECONE_API_KEY || "",
   pineconeIndexName: process.env.PINECONE_INDEX_NAME || "cv-chunks",
   pineconeEnvironment: process.env.PINECONE_ENVIRONMENT,
-  embeddingModel: process.env.EMBEDDING_MODEL || "text-embedding-3-small",
+  embeddingModel:
+    process.env.EMBEDDING_MODEL ||
+    ((process.env.LLM_PROVIDER as string) === "gemini" ? "text-embedding-004" : "text-embedding-3-small"),
   embeddingDimension: parseInt(process.env.EMBEDDING_DIMENSION || "512"),
   environment: process.env.ENVIRONMENT || "development",
   logLevel: process.env.LOG_LEVEL || "INFO",
